@@ -8,9 +8,10 @@
  */
 
 /** @framerIntrinsicWidth  600 */
-/** @framerIntrinsicHeight 8  */
+/** @framerIntrinsicHeight 48 */
 /** @framerSupportedLayoutWidth any-prefer-fixed */
 /** @framerSupportedLayoutHeight any */
+/** @framerDisableUnlink */
 
 import * as React from "react"
 import { addPropertyControls, ControlType, RenderTarget } from "framer"

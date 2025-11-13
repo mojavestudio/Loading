@@ -1,0 +1,370 @@
+.loadingStart,
+.loadingApp {
+    padding: 15px;
+    box-sizing: border-box;
+    color: var(--text-primary);
+    background: var(--bg-window);
+}
+
+.loadingStart {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.loadingStart-preview {
+    padding: 20px;
+    border-radius: 16px;
+    background: var(--surface-panel);
+    border: 1px solid var(--border-soft);
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.loadingStart-subtitle {
+    margin: 0;
+    color: var(--text-subtle);
+    font-size: 14px;
+}
+
+.loadingCard {
+    background: var(--surface-card);
+    border-radius: 16px;
+    box-shadow: var(--card-shadow);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.loadingCard h1 {
+    font-size: 28px;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.loadingCard-subtitle {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.loadingCard-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+label {
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--text-subtle);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="number"],
+select {
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--input-background);
+    color: var(--text-primary);
+}
+
+input[type="color"] {
+    width: 100%;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    padding: 0;
+    background: var(--surface-card);
+}
+
+.loadingCard-error {
+    color: var(--error-text);
+    margin: 0;
+    font-size: 13px;
+}
+
+button {
+    font-family: inherit;
+    font-size: 14px;
+    border-radius: 999px;
+    border: none;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.primary {
+    background: var(--accent-primary);
+    color: #ffffff;
+    box-shadow: var(--accent-glow);
+}
+
+.primary.small {
+    padding: 8px 14px;
+    font-size: 13px;
+}
+
+.ghost {
+    background: var(--ghost-bg);
+    color: var(--ghost-text);
+    border: 1px solid var(--ghost-border);
+}
+
+.ghost.small {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.loadingApp {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden auto;
+    gap: 20px;
+}
+
+.loadingPreviewSection {
+    padding: 15px;
+    border-radius: 16px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.loadingPreviewHeader {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.loadingPreviewHeader h1 {
+    margin: 0;
+    font-size: 26px;
+    color: var(--text-primary);
+}
+
+.loadingPreviewHeader p {
+    margin: 4px 0 0 0;
+    color: var(--text-tertiary);
+}
+
+.loadingPreviewActions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.badge {
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.loadingPreviewCanvas {
+    background: var(--surface-card);
+    border-radius: 16px;
+    border: 1px solid var(--preview-border);
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+}
+
+.loadingSizeRow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.loadingSettings {
+    padding: 12px 15px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.loadingFooter {
+    margin-top: auto;
+    padding: 0 15px 20px;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-tertiary);
+}
+
+.loadingFooter--main {
+    padding-top: 0;
+}
+
+.settingsGroup {
+    background: var(--surface-card);
+    border-radius: 16px;
+    border: 1px solid var(--settings-border);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.settingsGroup h2 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.settingsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    align-items: start;
+    color: var(--text-subtle);
+}
+
+.checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: var(--text-subtle);
+}
+
+.checkbox input {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--checkbox-border);
+}
+
+.loadingSettingsFooter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    color: var(--text-secondary);
+}
+
+.accountBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.previewRoot {
+    width: 100%;
+    max-width: 290px;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.previewBar {
+    position: relative;
+    overflow: hidden;
+}
+
+.previewFill {
+    height: 100%;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.previewLabel {
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-subtle);
+}
+
+.previewLabel--absolute {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+@media (max-width: 420px) {
+    .loadingPreviewHeader {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .loadingPreviewActions {
+        width: 100%;
+    }
+}
+
+[data-framer-theme="dark"] .loadingStart,
+[data-framer-theme="dark"] .loadingApp {
+    --bg-window: linear-gradient(180deg, #13111b 0%, #0c0b13 60%);
+    --surface-panel: rgba(30, 27, 46, 0.82);
+    --surface-card: #1e1b2e;
+    --border-soft: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --text-primary: rgba(255, 255, 255, 0.94);
+    --text-secondary: rgba(255, 255, 255, 0.72);
+    --text-tertiary: rgba(255, 255, 255, 0.7);
+    --text-subtle: rgba(255, 255, 255, 0.82);
+    --accent-primary: #b89bff;
+    --accent-glow: 0 12px 30px rgba(184, 155, 255, 0.45);
+    --ghost-bg: rgba(255, 255, 255, 0.08);
+    --ghost-border: rgba(255, 255, 255, 0.16);
+    --ghost-text: rgba(255, 255, 255, 0.92);
+    --badge-bg: rgba(184, 155, 255, 0.18);
+    --badge-text: #e2d9ff;
+    --input-background: rgba(20, 18, 30, 0.85);
+    --error-text: #ff9f9f;
+    --preview-border: rgba(255, 255, 255, 0.08);
+    --settings-border: rgba(255, 255, 255, 0.08);
+    --checkbox-border: rgba(255, 255, 255, 0.18);
+    --card-shadow: 0 24px 50px rgba(0, 0, 0, 0.55);
+}
+
+[data-framer-theme="light"] .loadingStart,
+[data-framer-theme="light"] .loadingApp {
+    --bg-window: linear-gradient(180deg, #f8f6ff 0%, #ffffff 60%);
+    --surface-panel: rgba(255, 255, 255, 0.8);
+    --surface-card: #ffffff;
+    --border-soft: rgba(17, 17, 17, 0.08);
+    --border-strong: rgba(17, 17, 17, 0.14);
+    --text-primary: #111111;
+    --text-secondary: rgba(17, 17, 17, 0.64);
+    --text-tertiary: rgba(17, 17, 17, 0.6);
+    --text-subtle: rgba(17, 17, 17, 0.72);
+    --accent-primary: #854fff;
+    --accent-glow: 0 12px 30px rgba(133, 79, 255, 0.35);
+    --ghost-bg: rgba(17, 17, 17, 0.04);
+    --ghost-border: rgba(17, 17, 17, 0.08);
+    --ghost-text: #111111;
+    --badge-bg: rgba(133, 79, 255, 0.12);
+    --badge-text: #854fff;
+    --input-background: #ffffff;
+    --error-text: #c0392b;
+    --preview-border: rgba(17, 17, 17, 0.05);
+    --settings-border: rgba(17, 17, 17, 0.05);
+    --checkbox-border: rgba(17, 17, 17, 0.14);
+    --card-shadow: 0 24px 50px rgba(17, 17, 17, 0.1);
+}

@@ -34,3 +34,13 @@ npm install react react-dom framer framer-motion
 This repo is ready to be initialized with git (run `git init` inside the folder). Commit `Loading.tsx` and `README.md`, then publish the repository via GitHub Desktop.
 
 Feel free to open issues or PRs once the repo is online!
+
+## Framer Plugin Layout
+
+The Loading Gate Framer plugin now mirrors the [recommended plugin architecture](https://www.framer.com/developers/concepts#plugin-architecture):
+
+- `main.tsx` bootstraps the plugin, calls `framer.showUI`, imports the shared `globals.css`, and mounts the React tree.
+- `App.tsx` contains the entire plugin UI/state machine (it still imports `App.css` for component-level styles and uses `framer` APIs for storage, auth, etc.).
+- `App.css` styles the plugin UI, while `globals.css` owns baseline tokens/resets in line with the Framer template.
+
+To try it inside Framer, drop these files into the `/src` directory of a Framer plugin project (or point your dev server at this folder) and run `npm run dev`. The start screen + builder flow will appear as a floating panel just like any plugin generated from the official template.
