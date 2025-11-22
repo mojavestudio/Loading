@@ -1,22 +1,33 @@
 :root {
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--text-primary, #111111);
-    background-color: var(--bg-window, #f7f6fb);
+    background-color: var(--bg-window, #ffffff);
 }
 
 *, *::before, *::after {
     box-sizing: border-box;
 }
 
+/* Ensure all elements respect container padding */
+main > * {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
 body {
     margin: 0;
     min-height: 100vh;
-    background: var(--bg-window, linear-gradient(180deg, #f7f6fb 0%, #ffffff 45%));
+    background: var(--bg-window, #ffffff);
     color: var(--text-primary, #111111);
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 main {
     width: 100%;
+    max-width: 100%;
     height: 100%;
     box-sizing: border-box;
+    overflow-x: hidden;
 }

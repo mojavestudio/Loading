@@ -11,7 +11,15 @@ export default defineConfig({
     port: 5173
   },
   build: {
-    target: "es2022"
+    target: "es2022",
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
+  },
+  optimizeDeps: {
+    include: ["@phosphor-icons/react"]
   }
 })
 

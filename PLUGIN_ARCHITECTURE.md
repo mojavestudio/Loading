@@ -76,7 +76,9 @@ If you inherit a flat prototype (only `App.tsx`, `App.css`, `main.tsx`, `globals
 ## Plugin Window, Padding & Component Sizing
 
 - `framer.showUI` pins the window to 320 px × 760 px and disables resizing (`Plugin/src/App.tsx:12-19`). Treat 320 px as immutable when designing layouts.
-- `main` applies `15px` padding on all sides for breathing room (`Plugin/src/App.css:3-20`). Any future panel should respect this inset to align with the Mojave design vocabulary.
+- **Base Padding**: `main` (via `.pluginRoot`) applies **15px padding on all sides** for breathing room (`Plugin/src/App.css:422-433`). Any future panel should respect this inset to align with the Mojave design vocabulary.
+- **Menu Boxes**: The settings menu panel (`.settingsMenu-panel`) is positioned absolutely with a **width of 240px**, positioned at the top-right of the header menu button (`Plugin/src/App.css:111-119`). Menu panels should use consistent border-radius (16px), padding (14px), and shadow styling to match the plugin's visual system.
+- **Builder Background & Accordions**: The builder stage sits directly on the same solid background as the login gate (`var(--bg-window)`), so `.settingsPanel` drops all borders/shadows and `.loadingSettings` inherits the page backdrop (`Plugin/src/App.css:394-420`). Each configuration section is a slim accordion (`.settingsGroup`) with transparent backgrounds, a single bottom border, and a 18 px vertical hit target for the toggle row plus a 16 px gutter for the revealed inputs (`Plugin/src/App.tsx:1311-1326`, `Plugin/src/App.css:566-608`). Only the three primary sections—Gate Behavior, Progress Animation, and Label—are rendered, each prefixed with a Phosphor icon (`Gate`, `SpinnerGap`, `TextT`) to reinforce hierarchy. Never wrap the dropdowns in extra cards; keep them flush so the header chrome and the body feel seamless, and surface account actions (Signed in + Sign out) beneath the accordions instead of nesting them inside another panel.
 - `MojaveGrid.tsx` declares `@framerIntrinsicWidth 600` and `@framerIntrinsicHeight 600`, plus `width = height = 600` defaults inside the component (`MojaveGrid.tsx:84-112`). New plugins should define explicit intrinsic sizes so inserted nodes appear predictable.
 - Component insertion uses those same 600 px dimensions when calling `framer.addComponentInstance` (`Plugin/src/App.tsx:1423-1462`). Keep the code component and insertion metadata in sync.
 
@@ -100,16 +102,18 @@ const AUTH_JSONP_ENDPOINT =
 - Implement `verifyAccessJSONP` exactly as in `Plugin/src/App.tsx:372-449`:
   1. Generate a unique JSONP callback name.
   2. Fetch the current Framer user ID (`framer.getCurrentUser`) and pass it as `framer_user_id`.
-  3. Run a pre-check `{ bind: false }` to fail fast on invalid invoices.
-  4. Run the binding call `{ bind: true }` only after the pre-check passes.
+  3. Pass along the Framer username (`framer_username`) so the Apps Script can bind it server-side when available.
+  4. Run a pre-check `{ bind: false }` to fail fast on invalid receipts.
+  5. Run the binding call `{ bind: true }` only after the pre-check passes.
   5. Surface granular errors for `wrong_plugin`, `not_found`, `bound_to_other`, and `bound_requires_user_id`.
   6. Time out requests after ~15 s and clean up the injected `<script>` tag.
 - The verification screen itself should:
   - Block the rest of the UI whenever `authStatus !== "authorized"` (`Plugin/src/App.tsx:1510-1650`).
   - Use the same animated canvas background (`authGridRef`) so the experience feels intentional.
   - Call `framer.notify` to confirm success or emit actionable error toasts.
+  - Keep login copy limited to the essentials: the hero title “Loading…” and the successful binding footer so the panel feels lightweight.
   - Label the purchase field as “Receipt #”, enforce the `0000-0000` pattern in both UI and verification logic, and reset the input after successful binding.
-  - Include the Mojave legal footer (`© Mojave Studio LLC — Custom Automated Web Design Experts · mojavestud.io`) at the base of both the login gate and the main editor view (`loadingFooter` component).
+  - Include the Mojave legal footer (`© Mojave Studio LLC — Custom Automated Web Design Experts · [mojavestud.io](https://mojavestud.io)`) at the base of both the login gate and the main editor view (`loadingFooter` component). The footer text must use a **font-size of 9px** (`Plugin/src/App.css:346-353`), and "mojavestud.io" must be rendered as a link to `https://mojavestud.io` that opens in a new tab with `target="_blank" rel="noopener noreferrer"` (`Plugin/src/App.tsx:965-971, 1344-1350`).
 
 ## Caching Login State
 
@@ -172,6 +176,7 @@ if (__isLocal) {
 - **Global layout**: Favor semantic HTML (`<main>`, `<section>`, `<form>`, etc.) and leverage Framer’s baked-in styles; use `framer-button-primary`, `framer-divider`, and native inputs where possible before introducing custom components.
 - **Color tokens**: Use Framer-provided CSS variables (e.g., `--framer-color-bg`, `--framer-color-text-secondary`, `--framer-color-divider`) for base surfaces and typography. Reserve custom tokens in `App.css` for accents that aren’t available through the Framer palette.
 - **Theme awareness**: Bind colors to `[data-framer-theme="light"]` / `[data-framer-theme="dark"]` selectors and read the runtime theme from `document.body.dataset.framerTheme` (see `useFramerTheme`). Avoid manual toggles—Framer’s theme drives the layout automatically.
+- **Header & action bar**: Mirror Framer’s native plugin chrome—a top title bar with a “Menu” button wired to `framer.showContextMenu`, and a bottom action bar that pairs a target dropdown with a `framer-button-primary` “Insert” CTA.
 - **Menus & context actions**: Register plugin-level menu options with `framer.setMenu` (e.g., “Log out”, “Reset defaults”) and rely on `framer.showContextMenu` for inline tables or lists. Make sure menu callbacks check permissions (see the Development Workflow section).
 - **Notifications**: Use `framer.notify` for success, warnings, and destructive confirmations. Attach undo handlers via the `button` option and close notifications programmatically if state changes beneath them.
 - **Cleanup**: Offer `framer.closePlugin` once long-running operations complete or when the plugin transitions back to a toast-only workflow.

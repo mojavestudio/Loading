@@ -1,6 +1,6 @@
 {
   "id": "lgate1",
-  "name": "Loading Gate",
+  "name": "Loading…",
   "slug": "loading-gate",
   "description": "Configure and insert the Loading Gate component with licensing and auth safeguards.",
   "version": "0.1.0",

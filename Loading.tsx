@@ -8,16 +8,15 @@
  */
 
 /** @framerIntrinsicWidth  600 */
-/** @framerIntrinsicHeight 48 */
+/** @framerIntrinsicHeight 8  */
 /** @framerSupportedLayoutWidth any-prefer-fixed */
 /** @framerSupportedLayoutHeight any */
-/** @framerDisableUnlink */
 
 import * as React from "react"
 import { addPropertyControls, ControlType, RenderTarget } from "framer"
 import { motion, useSpring } from "framer-motion"
 
-type WaitMode = "WindowLoad" | "FontsAndImages"
+// Removed WaitMode - always uses WindowLoad now
 
 type FontControlValue = {
     fontFamily?: string
@@ -31,22 +30,32 @@ type FontControlValue = {
     lineHeight?: number | string
 }
 
+type AnimationStyle = "bar" | "circle" | "text"
+type FillStyle = "solid" | "lines"
+
 type LoadBarConfig = {
-    showProgressBar: boolean
+    animationStyle: AnimationStyle
+    fillStyle: FillStyle
+    lineWidth: number
+    perpetual: boolean
+    perpetualGap: number
     barRadius: number
     barColor: string
     trackColor: string
+    showTrack: boolean
+    trackThickness: number
+    startAtLabel: boolean
     showLabel: boolean
+    labelText: string
     labelColor: string
     labelFontSize: number
     labelFontFamily: string
     labelFontWeight: string | number
     labelFont?: FontControlValue
     labelPosition: "left" | "center" | "right"
-    labelPlacement: "inside" | "outside"
-    labelOutsideDirection: "top" | "bottom"
-    waitBarFinish: boolean
-    finishHoldSeconds: number
+    labelPlacement: "inside" | "outside" | "inline"
+    labelOutsideDirection: "top" | "center" | "bottom"
+    finishDelay: number
     showBorder: boolean
     borderWidth: number
     borderColor: string
@@ -56,11 +65,7 @@ type Props = {
     style?: React.CSSProperties
     id?: string
 
-    // Gate
-    waitMode: WaitMode
-    imageScopeSelector: string
-    includeBackgrounds: boolean
-    quietSeconds: number
+    // Gate (always uses WindowLoad mode now)
     minSeconds: number
     timeoutSeconds: number
     oncePerSession: boolean
@@ -69,32 +74,34 @@ type Props = {
     customReadySelector: string
     customReadyEvent: string
     labelPosition?: "left" | "center" | "right"
-    labelPlacement?: "inside" | "outside"
-    labelOutsideDirection?: "top" | "bottom"
+    labelPlacement?: "inside" | "outside" | "inline"
+    labelOutsideDirection?: "top" | "center" | "bottom"
     loadBar?: Partial<LoadBarConfig>
     bar?: Partial<LoadBarConfig>
     label?: Partial<LoadBarConfig>
-    
+
     // Auto-hide when complete
     hideWhenComplete: boolean
-    
+
     // Variant to switch to when complete (for parent component control)
     completeVariant?: string
 
     // Progress visuals (legacy overrides; prefer loadBar)
-    showProgressBar?: boolean
     barRadius?: number
     barColor?: string
     trackColor?: string
+    showTrack?: boolean
+    trackThickness?: number
+    startAtLabel?: boolean
     showLabel?: boolean
+    labelText?: string
     labelColor?: string
     labelFontSize?: number
     labelFontFamily?: string
     labelFontWeight?: string | number
 
     // Finish behavior
-    waitBarFinish?: boolean
-    finishHoldSeconds?: number
+    finishDelay?: number
 
     // Border (optional)
     showBorder?: boolean
@@ -103,28 +110,36 @@ type Props = {
 }
 
 const SESSION_FLAG = "PageReadyGate:ready"
-const WEIGHTS = { assets: 0.6, fonts: 0.2, load: 0.2 }
 
 const DEFAULT_LOAD_BAR: LoadBarConfig = {
-    showProgressBar: true,
+    animationStyle: "bar",
+    fillStyle: "solid",
+    lineWidth: 2,
+    perpetual: false,
+    perpetualGap: 0.5,
     barRadius: 999,
     barColor: "#854FFF",
     trackColor: "rgba(0,0,0,.12)",
+    showTrack: true,
+    trackThickness: 2,
+    startAtLabel: false,
     showLabel: true,
+    labelText: "Loading",
     labelColor: "#222",
     labelFontSize: 11,
-    labelFontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    labelFontFamily:
+        'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     labelFontWeight: 600,
     labelFont: {
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamily:
+            'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         fontWeight: 600,
         fontSize: 11,
     },
     labelPosition: "right",
     labelPlacement: "inside",
     labelOutsideDirection: "bottom",
-    waitBarFinish: true,
-    finishHoldSeconds: 0.12,
+    finishDelay: 0.12,
     showBorder: false,
     borderWidth: 2,
     borderColor: "rgba(0,0,0,.2)",
@@ -146,6 +161,13 @@ export default function Loading(p: Props) {
     const gateStartRef = React.useRef<number | null>(null)
     const timerProgressRef = React.useRef(0)
     const readinessProgressRef = React.useRef(0)
+    const [labelElement, setLabelElement] = React.useState<HTMLDivElement | null>(null)
+    const [labelBounds, setLabelBounds] = React.useState({ width: 0, height: 0 })
+    const [containerSize, setContainerSize] = React.useState({ width: 0, height: 0 })
+    const setLabelRef = React.useCallback((node: HTMLDivElement | null) => {
+        labelRef.current = node
+        setLabelElement(node)
+    }, [])
     const loadBarOverrides = (p.loadBar || {}) as Partial<LoadBarConfig> & {
         bar?: Partial<LoadBarConfig>
         label?: Partial<LoadBarConfig>
@@ -166,11 +188,30 @@ export default function Loading(p: Props) {
         DEFAULT_LOAD_BAR.labelFont
     const fontSizeFromFont = parseFontSizeValue(fontOverride?.fontSize)
 
-    const showProgressBar = coalesce(
-        p.showProgressBar,
-        nestedBarOverrides.showProgressBar,
-        loadBarOverrides.showProgressBar,
-        DEFAULT_LOAD_BAR.showProgressBar
+    const animationStyle = coalesce(
+        nestedBarOverrides.animationStyle,
+        loadBarOverrides.animationStyle,
+        DEFAULT_LOAD_BAR.animationStyle
+    )!
+    const fillStyle = coalesce(
+        nestedBarOverrides.fillStyle,
+        loadBarOverrides.fillStyle,
+        DEFAULT_LOAD_BAR.fillStyle
+    )!
+    const lineWidth = coalesce(
+        nestedBarOverrides.lineWidth,
+        loadBarOverrides.lineWidth,
+        DEFAULT_LOAD_BAR.lineWidth
+    )!
+    const perpetual = coalesce(
+        nestedBarOverrides.perpetual,
+        loadBarOverrides.perpetual,
+        DEFAULT_LOAD_BAR.perpetual
+    )!
+    const perpetualGap = coalesce(
+        nestedBarOverrides.perpetualGap,
+        loadBarOverrides.perpetualGap,
+        DEFAULT_LOAD_BAR.perpetualGap
     )!
     const barRadius = coalesce(
         p.barRadius,
@@ -190,17 +231,28 @@ export default function Loading(p: Props) {
         loadBarOverrides.trackColor,
         DEFAULT_LOAD_BAR.trackColor
     )!
-    const waitBarFinish = coalesce(
-        p.waitBarFinish,
-        nestedBarOverrides.waitBarFinish,
-        loadBarOverrides.waitBarFinish,
-        DEFAULT_LOAD_BAR.waitBarFinish
+    const showTrack = coalesce(
+        p.showTrack,
+        nestedBarOverrides.showTrack,
+        loadBarOverrides.showTrack,
+        DEFAULT_LOAD_BAR.showTrack
     )!
-    const finishHoldSeconds = coalesce(
-        p.finishHoldSeconds,
-        nestedBarOverrides.finishHoldSeconds,
-        loadBarOverrides.finishHoldSeconds,
-        DEFAULT_LOAD_BAR.finishHoldSeconds
+    const trackThickness = coalesce(
+        nestedBarOverrides.trackThickness,
+        loadBarOverrides.trackThickness,
+        DEFAULT_LOAD_BAR.trackThickness
+    )!
+    const startAtLabel = coalesce(
+        p.startAtLabel,
+        nestedBarOverrides.startAtLabel,
+        loadBarOverrides.startAtLabel,
+        DEFAULT_LOAD_BAR.startAtLabel
+    )!
+    const finishDelay = coalesce(
+        p.finishDelay,
+        nestedBarOverrides.finishDelay,
+        loadBarOverrides.finishDelay,
+        DEFAULT_LOAD_BAR.finishDelay
     )!
     const showBorder = coalesce(
         p.showBorder,
@@ -227,6 +279,12 @@ export default function Loading(p: Props) {
         loadBarOverrides.showLabel,
         DEFAULT_LOAD_BAR.showLabel
     )!
+    const labelTextRaw = coalesce(
+        nestedLabelOverrides.labelText,
+        loadBarOverrides.labelText,
+        DEFAULT_LOAD_BAR.labelText
+    )
+    const labelText = (labelTextRaw ?? "").trim()
     const labelColor = coalesce(
         p.labelColor,
         nestedLabelOverrides.labelColor,
@@ -268,6 +326,12 @@ export default function Loading(p: Props) {
         loadBarOverrides.labelPlacement,
         DEFAULT_LOAD_BAR.labelPlacement
     )!
+    const resolvedLabelPlacement =
+        animationStyle === "circle"
+            ? labelPlacement
+            : labelPlacement === "inline"
+            ? "inside"
+            : labelPlacement
     const labelOutsideDirection = coalesce(
         p.labelOutsideDirection,
         nestedLabelOverrides.labelOutsideDirection,
@@ -276,11 +340,19 @@ export default function Loading(p: Props) {
     )!
 
     const loadBarConfig: LoadBarConfig = {
-        showProgressBar,
+        animationStyle,
+        fillStyle,
+        lineWidth,
+        perpetual,
+        perpetualGap,
         barRadius,
         barColor,
         trackColor,
+        showTrack,
+        trackThickness,
+        startAtLabel,
         showLabel,
+        labelText: labelTextRaw,
         labelColor,
         labelFontSize,
         labelFontFamily,
@@ -289,23 +361,43 @@ export default function Loading(p: Props) {
         labelPosition,
         labelPlacement,
         labelOutsideDirection,
-        waitBarFinish,
-        finishHoldSeconds,
+        finishDelay,
         showBorder,
         borderWidth,
         borderColor,
     }
 
+    const labelInside = showLabel && resolvedLabelPlacement === "inside"
+    const labelOutside =
+        showLabel &&
+        resolvedLabelPlacement === "outside" &&
+        animationStyle !== "text"
+    const labelInline =
+        showLabel &&
+        animationStyle === "circle" &&
+        resolvedLabelPlacement === "inline"
+
+    const formatLabel = React.useCallback(
+        (value: number) => {
+            const pct = Math.round(Math.max(0, Math.min(1, value)) * 100)
+            const prefix =
+                labelTextRaw !== undefined
+                    ? labelText
+                    : (DEFAULT_LOAD_BAR.labelText || "").trim()
+            return prefix ? `${prefix} ${pct}%` : `${pct}%`
+        },
+        [labelText, labelTextRaw]
+    )
+
     React.useEffect(() => {
-        if (!showProgressBar || !showLabel) return
+        if (!showLabel) return
         const unsub = progress.on("change", (v) => {
-            if (labelRef.current)
-                labelRef.current.textContent = `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`
+            if (labelRef.current) labelRef.current.textContent = formatLabel(v)
         }) as (() => void) | undefined
         return () => {
             if (typeof unsub === "function") unsub()
         }
-    }, [showProgressBar, showLabel, progress])
+    }, [showLabel, progress, formatLabel])
 
     const firedRef = React.useRef(false)
     const minTimerCompleteRef = React.useRef(false)
@@ -321,16 +413,12 @@ export default function Loading(p: Props) {
         const minMs = minSeconds * 1000
         const timeoutSeconds = Math.max(0, p.timeoutSeconds || 0)
         const timeoutMs = timeoutSeconds * 1000
-        const quietSeconds = Math.max(0, p.quietSeconds || 0.5)
-        const quietMs = quietSeconds * 1000
 
         console.log("[Gate] Timings:", {
             minSeconds,
             minMs,
             timeoutSeconds,
             timeoutMs,
-            quietSeconds,
-            quietMs,
         })
         gateStartRef.current = performance.now()
         minTimerCompleteRef.current = minMs === 0
@@ -338,31 +426,43 @@ export default function Loading(p: Props) {
 
         const timerWeight = minSeconds > 0 ? MIN_TIMER_PROGRESS_WEIGHT : 0
         const readinessWeight = 1 - timerWeight
-        const applyCombinedProgress = () => {
-            const timerComponent = timerProgressRef.current * timerWeight
-            const readinessComponent = readinessProgressRef.current * readinessWeight
-            const combined = timerComponent + readinessComponent
-            progress.set(Math.min(MAX_PROGRESS_BEFORE_FINAL, combined))
+        const updateVisualProgress = () => {
+            if (!minTimerCompleteRef.current) {
+                const timerPortion = timerProgressRef.current * timerWeight
+                progress.set(Math.min(MAX_PROGRESS_BEFORE_FINAL, timerPortion))
+            } else {
+                const readinessPortion = readinessProgressRef.current
+                const base = timerWeight
+                const target =
+                    readinessPortion >= 1
+                        ? 1
+                        : Math.min(
+                              1,
+                              base + readinessPortion * readinessWeight
+                          )
+                progress.set(target)
+            }
         }
         const setTimerProgress = (value: number) => {
             const clamped = clampValue(value)
             if (timerProgressRef.current === clamped) return
             timerProgressRef.current = clamped
-            applyCombinedProgress()
+            if (!minTimerCompleteRef.current) {
+                updateVisualProgress()
+            }
         }
         const setReadinessProgress = (value: number) => {
             const clamped = clampValue(value)
             if (readinessProgressRef.current === clamped) return
             readinessProgressRef.current = clamped
-            applyCombinedProgress()
+            if (minTimerCompleteRef.current) {
+                updateVisualProgress()
+            }
         }
 
         timerProgressRef.current = 0
         readinessProgressRef.current = 0
-        applyCombinedProgress()
-        if (minTimerCompleteRef.current) {
-            setTimerProgress(1)
-        }
+        updateVisualProgress()
 
         const getElapsedSeconds = () => {
             const start = gateStartRef.current
@@ -380,11 +480,17 @@ export default function Loading(p: Props) {
                 }
                 if (elapsedSeconds >= minSeconds) {
                     minTimerCompleteRef.current = true
-                    setTimerProgress(1)
-                    console.log("[Gate] Minimum time complete", { elapsedSeconds })
+                    timerProgressRef.current = 1
+                    updateVisualProgress()
+                    console.log("[Gate] Minimum time complete", {
+                        elapsedSeconds,
+                    })
                     break
                 }
-                const remainingSeconds = Math.max(0, minSeconds - elapsedSeconds)
+                const remainingSeconds = Math.max(
+                    0,
+                    minSeconds - elapsedSeconds
+                )
                 const roundedRemaining = Math.ceil(remainingSeconds)
                 if (roundedRemaining < lastLoggedRemainder) {
                     lastLoggedRemainder = roundedRemaining
@@ -393,7 +499,10 @@ export default function Loading(p: Props) {
                         remainingSeconds,
                     })
                 }
-                const sleepSeconds = Math.min(MINIMUM_WAIT_POLL_SECONDS, remainingSeconds)
+                const sleepSeconds = Math.min(
+                    MINIMUM_WAIT_POLL_SECONDS,
+                    remainingSeconds
+                )
                 await delay(Math.max(16, sleepSeconds * 1000))
             }
         }
@@ -401,7 +510,9 @@ export default function Loading(p: Props) {
         if (p.oncePerSession) {
             try {
                 if (sessionStorage.getItem(SESSION_FLAG) === "1") {
-                    console.log("[Gate] Skipping - already ran this session (holding for minimum)")
+                    console.log(
+                        "[Gate] Skipping - already ran this session (holding for minimum)"
+                    )
                     // Important: call finalize without returning it so React cleanup stays a function
                     // Do NOT skip the minimum; finalize() will enforce any remaining hold
                     void finalize()
@@ -411,55 +522,36 @@ export default function Loading(p: Props) {
         }
 
         let loadDone = document.readyState === "complete"
-        let fontsDone = p.waitMode === "FontsAndImages" ? false : true
-        let assetsFrac = p.waitMode === "FontsAndImages" ? 0 : 1
-
-        bumpBlend()
 
         function setBlend(opts: {
             loadDone?: boolean
-            fontsDone?: boolean
-            assetsFrac?: number
         }) {
             if (opts.loadDone !== undefined) loadDone = opts.loadDone
-            if (opts.fontsDone !== undefined) fontsDone = opts.fontsDone
-            if (opts.assetsFrac !== undefined) assetsFrac = opts.assetsFrac
             bumpBlend()
         }
-        
+
         function bumpBlend() {
-            const blended =
-                WEIGHTS.assets * clampValue(assetsFrac) +
-                WEIGHTS.fonts * (fontsDone ? 1 : 0) +
-                WEIGHTS.load * (loadDone ? 1 : 0)
-            setReadinessProgress(Math.min(1, blended))
+            // Always use WindowLoad - progress is based on window load state only
+            setReadinessProgress(loadDone ? 1 : 0)
         }
 
         const waitWindow = waitForWindowLoad((done) =>
             setBlend({ loadDone: done })
         )
-        const readyStrict =
-            p.waitMode === "FontsAndImages"
-                ? waitForStrictAssets({
-                      scopeSelector: p.imageScopeSelector,
-                      includeBackgrounds: p.includeBackgrounds,
-                      quietMs,
-                      onAssetsProgress: (f) => setBlend({ assetsFrac: f }),
-                      onFontsReady: (d) => setBlend({ fontsDone: d }),
-                  })
-                : Promise.resolve()
 
-        const baseReady =
-            p.waitMode === "WindowLoad"
-                ? waitWindow
-                : Promise.all([waitWindow, readyStrict]).then(() => {})
+        const baseReady = waitWindow
 
         const customReadyHandle = createCustomReadyWait({
             selector: p.customReadySelector,
             eventName: p.customReadyEvent,
         })
         if (customReadyHandle) {
-            console.log("[Gate] Waiting for custom selector", p.customReadySelector, "event:", p.customReadyEvent || "load")
+            console.log(
+                "[Gate] Waiting for custom selector",
+                p.customReadySelector,
+                "event:",
+                p.customReadyEvent || "load"
+            )
         }
         const ready = customReadyHandle
             ? Promise.all([baseReady, customReadyHandle.promise]).then(() => {})
@@ -506,12 +598,16 @@ export default function Loading(p: Props) {
                         outcome = await Promise.race([
                             readySignalPromise.then(() => "ready" as const),
                             timeoutPromise,
-                            delay(POST_MINIMUM_POLL_MS).then(() => "tick" as const),
+                            delay(POST_MINIMUM_POLL_MS).then(
+                                () => "tick" as const
+                            ),
                         ])
                     } else {
                         outcome = (await Promise.race([
                             readySignalPromise.then(() => "ready" as const),
-                            delay(POST_MINIMUM_POLL_MS).then(() => "tick" as const),
+                            delay(POST_MINIMUM_POLL_MS).then(
+                                () => "tick" as const
+                            ),
                         ])) as "ready" | "tick"
                     }
 
@@ -527,14 +623,19 @@ export default function Loading(p: Props) {
 
                     if (outcome === "timeout") {
                         timedOut = true
-                        console.warn("[Gate] Timeout reached before ready state")
+                        console.warn(
+                            "[Gate] Timeout reached before ready state"
+                        )
                         break
                     }
 
-                    console.log("[Gate] Minimum met; still waiting for readiness", {
-                        elapsedSeconds: getElapsedSeconds(),
-                        readyComplete: readyCompleteRef.current,
-                    })
+                    console.log(
+                        "[Gate] Minimum met; still waiting for readiness",
+                        {
+                            elapsedSeconds: getElapsedSeconds(),
+                            readyComplete: readyCompleteRef.current,
+                        }
+                    )
                 }
             }
 
@@ -554,27 +655,29 @@ export default function Loading(p: Props) {
             if (firedRef.current) return
             firedRef.current = true
 
-            if (!options?.skipMinimumCheck && minMs > 0 && !minTimerCompleteRef.current) {
+            if (
+                !options?.skipMinimumCheck &&
+                minMs > 0 &&
+                !minTimerCompleteRef.current
+            ) {
                 await waitForMinimum()
             }
 
             console.log("[Gate] Finalizing...")
 
-            if (showProgressBar) {
-                progress.set(1)
-                if (waitBarFinish) {
-                    await waitUntil(() => progress.get() >= 0.995, 1200)
-                    const hold = Math.max(0, (finishHoldSeconds || 0) * 1000)
-                    if (hold) await delay(hold)
-                }
-            }
+            progress.set(1)
+            await waitUntil(() => progress.get() >= 0.995, 1200)
+            const hold = Math.max(0, (finishDelay || 0) * 1000)
+            if (hold) await delay(hold)
 
             if (p.onReady) {
                 console.log("[Gate] Dispatching onReady event")
                 // Fire a synthetic event that matches Framer's expectations for interaction triggers
                 p.onReady(createGateEvent(rootRef.current))
             } else {
-                console.log("[Gate] No onReady handler wired; skipping dispatch")
+                console.log(
+                    "[Gate] No onReady handler wired; skipping dispatch"
+                )
             }
 
             if (p.oncePerSession) {
@@ -597,24 +700,56 @@ export default function Loading(p: Props) {
         }
     }, [
         gatingOff,
-        p.waitMode,
-        p.imageScopeSelector,
-        p.includeBackgrounds,
-        p.quietSeconds,
         p.minSeconds,
         p.timeoutSeconds,
         p.oncePerSession,
         p.onReady,
         p.customReadySelector,
         p.customReadyEvent,
-        showProgressBar,
-        waitBarFinish,
-        finishHoldSeconds,
+        finishDelay,
         progress,
     ])
 
-    const labelStyle: React.CSSProperties = {
-        position: "absolute",
+    React.useLayoutEffect(() => {
+        const node = rootRef.current
+        if (!node) return
+        const measure = () => {
+            setContainerSize({
+                width: node.offsetWidth,
+                height: node.offsetHeight,
+            })
+        }
+        measure()
+        if (typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(() => measure())
+        observer.observe(node)
+        return () => {
+            observer.disconnect()
+        }
+    }, [])
+
+
+    React.useLayoutEffect(() => {
+        if (!labelOutside) {
+            setLabelBounds({ width: 0, height: 0 })
+            return
+        }
+        const node = labelElement
+        if (!node) return
+        const measure = () => {
+            setLabelBounds({
+                width: node.offsetWidth,
+                height: node.offsetHeight,
+            })
+        }
+        measure()
+        if (typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(() => measure())
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [labelOutside, labelElement])
+
+    const baseLabelStyle: React.CSSProperties = {
         fontSize: labelFontSize,
         fontFamily: labelFontFamily,
         fontWeight: labelFontWeight,
@@ -624,66 +759,426 @@ export default function Loading(p: Props) {
 
     const appliedFont = fontOverride || DEFAULT_LOAD_BAR.labelFont
     const fontStyleValue = appliedFont?.fontStyle ?? appliedFont?.style
-    if (fontStyleValue) labelStyle.fontStyle = fontStyleValue as React.CSSProperties["fontStyle"]
+    if (fontStyleValue)
+        baseLabelStyle.fontStyle =
+            fontStyleValue as React.CSSProperties["fontStyle"]
     if (appliedFont?.letterSpacing != null)
-        labelStyle.letterSpacing = appliedFont.letterSpacing as React.CSSProperties["letterSpacing"]
+        baseLabelStyle.letterSpacing =
+            appliedFont.letterSpacing as React.CSSProperties["letterSpacing"]
     if (appliedFont?.lineHeight != null)
-        labelStyle.lineHeight = appliedFont.lineHeight as React.CSSProperties["lineHeight"]
+        baseLabelStyle.lineHeight =
+            appliedFont.lineHeight as React.CSSProperties["lineHeight"]
 
-    if (labelPlacement === "inside") {
-        labelStyle.top = "50%"
-        switch (labelPosition) {
-            case "left":
-                labelStyle.left = 8
-                labelStyle.transform = "translateY(-50%)"
-                break
-            case "center":
-                labelStyle.left = "50%"
-                labelStyle.transform = "translate(-50%, -50%)"
-                break
-            default:
-                labelStyle.right = 8
-                labelStyle.transform = "translateY(-50%)"
-        }
-    } else {
+    const labelSpacing = 6
+    const outsidePadding = {
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+    }
+
+    if (labelOutside) {
         if (labelOutsideDirection === "top") {
-            labelStyle.bottom = "100%"
-            labelStyle.marginBottom = 6
+            outsidePadding.top =
+                (labelBounds.height || 0) + labelSpacing
+        } else if (labelOutsideDirection === "bottom") {
+            outsidePadding.bottom =
+                (labelBounds.height || 0) + labelSpacing
         } else {
-            labelStyle.top = "100%"
-            labelStyle.marginTop = 6
-        }
-        switch (labelPosition) {
-            case "left":
-                labelStyle.left = 0
-                break
-            case "center":
-                labelStyle.left = "50%"
-                labelStyle.transform = "translateX(-50%)"
-                break
-            default:
-                labelStyle.right = 0
-                break
+            const horizontalSpace = (labelBounds.width || 0) + labelSpacing
+            const horizontalAnchor =
+                labelPosition === "center" ? "right" : labelPosition
+            if (horizontalAnchor === "left") {
+                outsidePadding.left = horizontalSpace
+            } else if (horizontalAnchor === "right") {
+                outsidePadding.right = horizontalSpace
+            }
         }
     }
 
-    return (
-        <div
-            ref={rootRef}
-            style={{
-                ...p.style,
-                width: "100%",
-                height: "100%",
-                position: "relative",
-                display: (p.hideWhenComplete && isComplete) ? "none" : undefined
-            }}
-        >
-            {showProgressBar && (
+    const measuredWidth =
+        containerSize.width ||
+        (typeof p.style?.width === "number" ? p.style.width : 600)
+    const measuredHeight =
+        containerSize.height ||
+        (typeof p.style?.height === "number" ? p.style.height : 48)
+    const contentWidth = Math.max(
+        0,
+        measuredWidth - outsidePadding.left - outsidePadding.right
+    )
+    const contentHeight = Math.max(
+        0,
+        measuredHeight - outsidePadding.top - outsidePadding.bottom
+    )
+
+    const insideLabelTransform: string[] = []
+    const insideLabelStyle: React.CSSProperties = {
+        ...baseLabelStyle,
+        position: "absolute",
+    }
+    if (resolvedLabelPlacement === "inside") {
+        insideLabelStyle.top = "50%"
+        insideLabelTransform.push("translateY(-50%)")
+        switch (labelPosition) {
+            case "left":
+                insideLabelStyle.left = 8
+                break
+            case "center":
+                insideLabelStyle.left = "50%"
+                insideLabelTransform.push("translateX(-50%)")
+                break
+            default:
+                insideLabelStyle.right = 8
+                break
+        }
+    }
+    if (insideLabelTransform.length > 0) {
+        insideLabelStyle.transform = insideLabelTransform.join(" ")
+    }
+
+    const outsideLabelTransform: string[] = []
+    const outsideLabelStyle: React.CSSProperties = {
+        ...baseLabelStyle,
+        position: "absolute",
+    }
+    if (resolvedLabelPlacement === "outside") {
+        if (labelOutsideDirection === "top") {
+            outsideLabelStyle.top = 0
+        } else if (labelOutsideDirection === "center") {
+            outsideLabelStyle.top = "50%"
+            outsideLabelTransform.push("translateY(-50%)")
+        } else {
+            outsideLabelStyle.bottom = 0
+        }
+        const outsideHorizontal =
+            labelOutsideDirection === "center" && labelPosition === "center"
+                ? "right"
+                : labelPosition
+        switch (outsideHorizontal) {
+            case "left":
+                outsideLabelStyle.left = 0
+                break
+            case "center":
+                outsideLabelStyle.left = "50%"
+                outsideLabelTransform.push("translateX(-50%)")
+                break
+            default:
+                outsideLabelStyle.right = 0
+                break
+        }
+    }
+    if (outsideLabelTransform.length > 0) {
+        outsideLabelStyle.transform = outsideLabelTransform.join(" ")
+    }
+
+    const rootStyle: React.CSSProperties = {
+        ...p.style,
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        boxSizing: "border-box",
+        paddingTop: outsidePadding.top,
+        paddingRight: outsidePadding.right,
+        paddingBottom: outsidePadding.bottom,
+        paddingLeft: outsidePadding.left,
+    }
+    if (p.hideWhenComplete && isComplete) {
+        rootStyle.display = "none"
+    }
+
+    // Perpetual animation state for circle mode
+    const [perpetualProgress, setPerpetualProgress] = React.useState(0)
+    
+    React.useEffect(() => {
+        if (animationStyle === "circle" && perpetual) {
+            let animationId: number | null = null
+            let startTime: number | null = null
+            let isAnimating = true
+            
+            const animate = (timestamp: number) => {
+                if (!startTime) startTime = timestamp
+                const elapsed = timestamp - startTime
+                
+                // Animation duration (1 second), then gap
+                const animationDuration = 1000 // 1 second for full cycle
+                const gapDuration = perpetualGap * 1000 // gap in milliseconds
+                const cycleDuration = animationDuration + gapDuration
+                
+                const cycleTime = elapsed % cycleDuration
+                
+                if (cycleTime < animationDuration) {
+                    // During animation phase
+                    const progress = cycleTime / animationDuration
+                    setPerpetualProgress(progress)
+                } else {
+                    // During gap phase
+                    setPerpetualProgress(0)
+                }
+                
+                if (isAnimating) {
+                    animationId = requestAnimationFrame(animate)
+                }
+            }
+            
+            animationId = requestAnimationFrame(animate)
+            
+            return () => {
+                isAnimating = false
+                if (animationId !== null) {
+                    cancelAnimationFrame(animationId)
+                }
+            }
+        }
+    }, [animationStyle, perpetual, perpetualGap])
+    
+    // Get the actual progress value for rendering - make it reactive
+    const [currentProgress, setCurrentProgress] = React.useState(0)
+    
+    React.useEffect(() => {
+        if (perpetual && animationStyle === "circle") {
+            // perpetualProgress is already being updated by the perpetual effect
+            setCurrentProgress(perpetualProgress)
+            return
+        }
+        
+        // Subscribe to progress changes
+        const unsub = progress.on("change", (v) => {
+            setCurrentProgress(Math.max(0, Math.min(1, v)))
+        }) as (() => void) | undefined
+        
+        // Set initial value
+        setCurrentProgress(Math.max(0, Math.min(1, progress.get())))
+        
+        return () => {
+            if (typeof unsub === "function") unsub()
+        }
+    }, [progress, perpetual, animationStyle, perpetualProgress])
+    
+    const progressValue = perpetual && animationStyle === "circle" 
+        ? perpetualProgress 
+        : currentProgress
+    const initialLabelValue = formatLabel(progressValue)
+    
+    // Render based on animation style
+    const renderContent = () => {
+        const trackBackground = showTrack ? trackColor : "transparent"
+        if (animationStyle === "text") {
+            // Text only mode - always show label if text mode
+            return (
+                <div style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    position: "relative",
+                }}>
+                    {showLabel && (
+                        <div
+                            ref={setLabelRef}
+                            style={{
+                                ...baseLabelStyle,
+                                position: "relative",
+                            }}
+                        >
+                            {initialLabelValue}
+                        </div>
+                    )}
+                </div>
+            )
+        }
+
+        if (animationStyle === "circle") {
+            // Circle rendering
+            const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
+            const circleBoxSize = Math.max(0, baseCircleSize - 15)
+            const circleSize = circleBoxSize * 0.7
+            const circleRadius = Math.max(
+                0,
+                circleSize / 2 - (showBorder ? borderWidth : 0)
+            )
+            const strokeWidth =
+                fillStyle === "lines" ? lineWidth : showBorder ? borderWidth : 0
+            const circumference = 2 * Math.PI * circleRadius
+            const labelAngle = getInlineAngle(labelPosition, labelOutsideDirection)
+            const rotationDeg = startAtLabel ? labelAngle : -90
+            const gapDegrees = 12
+            const gapLength = (gapDegrees / 360) * circumference
+            const gapOffset =
+                ((labelAngle - rotationDeg + 360) % 360) / 360 * circumference -
+                gapLength / 2
+            const progressCap: React.SVGAttributes<SVGCircleElement>["strokeLinecap"] =
+                progressValue <= 0.001 ? "butt" : "round"
+            const circleOffsetX = (contentWidth - circleSize) / 2
+            const circleOffsetY = (contentHeight - circleSize) / 2
+            const circleLabelInset = Math.min(16, Math.max(6, circleSize * 0.08))
+            
+            return (
+                <div style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    position: "relative",
+                }}>
+                    <svg
+                        width={circleSize}
+                        height={circleSize}
+                        style={{ transform: `rotate(${rotationDeg}deg)` }}
+                    >
+                        {/* Background circle (track) */}
+                        {showTrack && (
+                            <circle
+                                cx={circleSize / 2}
+                                cy={circleSize / 2}
+                                r={circleRadius}
+                                fill="none"
+                                stroke={trackColor}
+                                strokeWidth={trackThickness || strokeWidth || 2}
+                                strokeDasharray={`${circumference - gapLength} ${gapLength}`}
+                                strokeDashoffset={gapOffset}
+                                strokeLinecap="round"
+                            />
+                        )}
+                        {/* Progress circle */}
+                        {fillStyle === "solid" ? (
+                            <circle
+                                cx={circleSize / 2}
+                                cy={circleSize / 2}
+                                r={circleRadius}
+                                fill="none"
+                                stroke={progressValue > 0 ? barColor : "transparent"}
+                                strokeWidth={strokeWidth || 2}
+                                strokeDasharray={`${Math.max(
+                                    0,
+                                    (circumference - gapLength) * progressValue
+                                )} ${Math.max(
+                                    0,
+                                    (circumference - gapLength) * (1 - progressValue) + gapLength
+                                )}`}
+                                strokeDashoffset={gapOffset}
+                                strokeLinecap={progressCap}
+                            />
+                        ) : (
+            // Lines mode for circle
+            <>
+                {Array.from({ length: 20 }).map((_, i) => {
+                                    const shouldShow = i < Math.floor(progressValue * 20)
+                                    if (!shouldShow) return null
+                                    const angle = (i / 20) * 360 - 90
+                                    const angleDelta = Math.abs(
+                                        ((((angle - labelAngle) % 360) + 540) % 360) - 180
+                                    )
+                                    if (angleDelta <= gapDegrees / 2) return null
+                                    const rad = (angle * Math.PI) / 180
+                                    const innerRadius = Math.max(0, circleRadius - lineWidth)
+                                    const x1 = circleSize / 2 + circleRadius * Math.cos(rad)
+                                    const y1 = circleSize / 2 + circleRadius * Math.sin(rad)
+                                    const x2 = circleSize / 2 + innerRadius * Math.cos(rad)
+                                    const y2 = circleSize / 2 + innerRadius * Math.sin(rad)
+                                    return (
+                                        <line
+                                            key={i}
+                                            x1={x1}
+                                            y1={y1}
+                                            x2={x2}
+                                            y2={y2}
+                                            stroke={barColor}
+                                            strokeWidth={lineWidth}
+                                            strokeLinecap="round"
+                                        />
+                                    )
+                                })}
+                            </>
+                        )}
+                    </svg>
+                    {labelInside && (
+                        <div
+                            style={{
+                                position: "absolute",
+                                width: circleSize,
+                                height: circleSize,
+                                left: circleOffsetX,
+                                top: circleOffsetY,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: mapLabelAlign(labelPosition),
+                                pointerEvents: "none",
+                                paddingLeft:
+                                    labelPosition === "left"
+                                        ? circleLabelInset
+                                        : 0,
+                                paddingRight:
+                                    labelPosition === "right"
+                                        ? circleLabelInset
+                                        : 0,
+                            }}
+                        >
+                            <div
+                                ref={setLabelRef}
+                                style={{
+                                    ...baseLabelStyle,
+                                    position: "relative",
+                                    top: "auto",
+                                    bottom: "auto",
+                                    left: "auto",
+                                    right: "auto",
+                                    transform: "none",
+                                }}
+                            >
+                                {initialLabelValue}
+                            </div>
+                        </div>
+                    )}
+                    {labelInline && (
+                        <div
+                            style={{
+                                position: "absolute",
+                                width: circleSize,
+                                height: circleSize,
+                                left: circleOffsetX,
+                                top: circleOffsetY,
+                                pointerEvents: "none",
+                            }}
+                        >
+                            {(() => {
+                                const angle = getInlineAngle(labelPosition, labelOutsideDirection)
+                                const rad = (angle * Math.PI) / 180
+                                const labelRadius = circleRadius
+                                const lx = circleSize / 2 + labelRadius * Math.cos(rad)
+                                const ly = circleSize / 2 + labelRadius * Math.sin(rad)
+                                return (
+                                    <div
+                                        ref={setLabelRef}
+                                        style={{
+                                            ...baseLabelStyle,
+                                            position: "absolute",
+                                            left: lx,
+                                            top: ly,
+                                            transform: "translate(-50%, -50%)",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
+                                        {initialLabelValue}
+                                    </div>
+                                )
+                            })()}
+                        </div>
+                    )}
+                </div>
+            )
+        }
+
+        // Bar rendering (default)
+        if (fillStyle === "solid") {
+            // Solid bar (existing behavior)
+            return (
                 <div
                     style={{
                         width: "100%",
                         height: "100%",
-                        background: trackColor,
+                        background: trackBackground,
                         borderRadius: barRadius,
                         overflow: "hidden",
                         border:
@@ -691,6 +1186,7 @@ export default function Loading(p: Props) {
                                 ? `${borderWidth}px solid ${borderColor}`
                                 : "none",
                         boxSizing: "border-box",
+                        position: "relative",
                     }}
                 >
                     <motion.div
@@ -703,11 +1199,67 @@ export default function Loading(p: Props) {
                             scaleX: progress,
                         }}
                     />
+                    {labelInside && (
+                        <div ref={setLabelRef} style={insideLabelStyle}>
+                            {initialLabelValue}
+                        </div>
+                    )}
                 </div>
-            )}
-            {showProgressBar && showLabel && (
-                <div ref={labelRef} style={labelStyle}>
-                    0%
+            )
+        } else {
+            // Lines mode for bar
+            const numLines = Math.floor(progressValue * 20)
+            return (
+                <div
+                    style={{
+                        width: "100%",
+                        height: "100%",
+                        background: trackBackground,
+                        borderRadius: barRadius,
+                        overflow: "hidden",
+                        border:
+                            showBorder && borderWidth > 0
+                                ? `${borderWidth}px solid ${borderColor}`
+                                : "none",
+                        boxSizing: "border-box",
+                        display: "flex",
+                        gap: 2,
+                        padding: 2,
+                        position: "relative",
+                    }}
+                >
+                    {Array.from({ length: 20 }).map((_, i) => {
+                        const shouldShow = i < numLines
+                        return (
+                            <div
+                                key={i}
+                                style={{
+                                    flex: 1,
+                                    height: "100%",
+                                    background: shouldShow ? barColor : trackBackground,
+                                    borderRadius: 2,
+                                    opacity: shouldShow ? 1 : showTrack ? 0.3 : 0,
+                                    transition: "all 0.2s ease",
+                                }}
+                            />
+                        )
+                    })}
+                    {labelInside && (
+                        <div ref={setLabelRef} style={insideLabelStyle}>
+                            {initialLabelValue}
+                        </div>
+                    )}
+                </div>
+            )
+        }
+    }
+
+    return (
+        <div ref={rootRef} style={rootStyle}>
+            {renderContent()}
+            {labelOutside && (
+                <div ref={setLabelRef} style={outsideLabelStyle}>
+                    {initialLabelValue}
                 </div>
             )}
         </div>
@@ -895,6 +1447,32 @@ function coalesce<T>(...values: Array<T | undefined | null>): T | undefined {
     return undefined
 }
 
+function mapLabelAlign(position?: "left" | "center" | "right") {
+    switch (position) {
+        case "left":
+            return "flex-start"
+        case "center":
+            return "center"
+        default:
+            return "flex-end"
+    }
+}
+
+function getInlineAngle(
+    position?: "left" | "center" | "right",
+    direction?: "top" | "center" | "bottom"
+) {
+    const x = position === "left" ? -1 : position === "right" ? 1 : 0
+    const y = direction === "top" ? -1 : direction === "bottom" ? 1 : 0
+    const hasX = x !== 0
+    const hasY = y !== 0
+    if (!hasX && !hasY) {
+        return -90
+    }
+    const angleRad = Math.atan2(hasY ? y : 0, hasX ? x : 0)
+    return (angleRad * 180) / Math.PI
+}
+
 function createGateEvent(target: EventTarget | null) {
     let defaultPrevented = false
     let propagationStopped = false
@@ -936,7 +1514,9 @@ type CustomReadyHandle = {
     cancel: () => void
 }
 
-function createCustomReadyWait(opts: CustomReadyOptions): CustomReadyHandle | null {
+function createCustomReadyWait(
+    opts: CustomReadyOptions
+): CustomReadyHandle | null {
     const selector = (opts.selector || "").trim()
     if (!selector || typeof document === "undefined") return null
 
@@ -977,9 +1557,17 @@ function createCustomReadyWait(opts: CustomReadyOptions): CustomReadyHandle | nu
         if (eventName !== "load") return false
         const anyEl = el as any
         if (typeof anyEl.complete === "boolean" && anyEl.complete) return true
-        if (typeof anyEl.readyState === "string" && anyEl.readyState === "complete") return true
+        if (
+            typeof anyEl.readyState === "string" &&
+            anyEl.readyState === "complete"
+        )
+            return true
         if (anyEl.dataset) {
-            if (anyEl.dataset.loaded === "true" || anyEl.dataset.ready === "true") return true
+            if (
+                anyEl.dataset.loaded === "true" ||
+                anyEl.dataset.ready === "true"
+            )
+                return true
         }
         if (typeof anyEl.getAttribute === "function") {
             const dl = anyEl.getAttribute("data-loaded")
@@ -1012,11 +1600,16 @@ function createCustomReadyWait(opts: CustomReadyOptions): CustomReadyHandle | nu
                 if (node.nodeType !== 1) return
                 const el = node as Element
                 if (el.matches(selector)) watchElement(el)
-                el.querySelectorAll?.(selector).forEach((match) => watchElement(match as Element))
+                el
+                    .querySelectorAll?.(selector)
+                    .forEach((match) => watchElement(match as Element))
             })
         })
     })
-    observer.observe(document.documentElement, { childList: true, subtree: true })
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+    })
 
     if (pending === 0 && seenMatch) {
         cleanup()
@@ -1038,10 +1631,6 @@ function createCustomReadyWait(opts: CustomReadyOptions): CustomReadyHandle | nu
 Loading.displayName = "Loading..."
 
 Loading.defaultProps = {
-    waitMode: "FontsAndImages" as WaitMode,
-    imageScopeSelector: "",
-    includeBackgrounds: true,
-    quietSeconds: 0.6,
     minSeconds: 0.6,
     timeoutSeconds: 12,
     oncePerSession: false,
@@ -1054,34 +1643,6 @@ Loading.defaultProps = {
 }
 
 addPropertyControls(Loading, {
-    waitMode: {
-        type: ControlType.Enum,
-        title: "Wait For",
-        options: ["FontsAndImages", "WindowLoad"],
-        optionTitles: ["Fonts + Images", "Window load"],
-    },
-    imageScopeSelector: {
-        type: ControlType.String,
-        title: "Images in… (CSS)",
-        placeholder: "#hero, .aboveFold",
-        hidden: (p) => p.waitMode === "WindowLoad",
-    },
-    includeBackgrounds: {
-        type: ControlType.Boolean,
-        title: "Bg Images",
-        defaultValue: true,
-        hidden: (p) => p.waitMode === "WindowLoad",
-    },
-    quietSeconds: {
-        type: ControlType.Number,
-        title: "Quiet (s)",
-        min: 0.2,
-        max: 5,
-        step: 0.1,
-        defaultValue: 0.6,
-        displayStepper: true,
-        hidden: (p) => p.waitMode === "WindowLoad",
-    },
 
     minSeconds: {
         type: ControlType.Number,
@@ -1127,15 +1688,64 @@ addPropertyControls(Loading, {
         placeholder: "load",
         hidden: (p) => !p.customReadySelector,
     },
-    bar: {
-        type: ControlType.Object,
-        title: "Load Bar",
-        controls: {
-            showProgressBar: {
-                type: ControlType.Boolean,
-                title: "Show Progress Bar",
-                defaultValue: DEFAULT_LOAD_BAR.showProgressBar,
-            },
+  bar: {
+    type: ControlType.Object,
+    title: "Load Bar",
+    controls: {
+      animationStyle: {
+        type: ControlType.Enum,
+        title: "Animation",
+        options: ["bar", "circle", "text"],
+        optionTitles: ["Bar", "Circle", "Text"],
+        displaySegmentedControl: true,
+        defaultValue: DEFAULT_LOAD_BAR.animationStyle,
+      },
+      fillStyle: {
+        type: ControlType.Enum,
+        title: "Fill",
+        options: ["solid", "lines"],
+        optionTitles: ["Solid", "Lines"],
+        displaySegmentedControl: true,
+        defaultValue: DEFAULT_LOAD_BAR.fillStyle,
+        hidden: (bar: any = {}) =>
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
+      },
+      lineWidth: {
+        type: ControlType.Number,
+        title: "Line Width",
+        min: 1,
+        max: 20,
+        step: 0.5,
+        defaultValue: DEFAULT_LOAD_BAR.lineWidth,
+        displayStepper: true,
+        hidden: (bar: any = {}) => {
+          const style = bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
+          const fill = bar.fillStyle ?? DEFAULT_LOAD_BAR.fillStyle;
+          return style === "text" || fill !== "lines";
+        },
+      },
+      perpetual: {
+        type: ControlType.Boolean,
+        title: "Perpetual (Circle)",
+        defaultValue: DEFAULT_LOAD_BAR.perpetual,
+        hidden: (bar: any = {}) =>
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "circle",
+      },
+      perpetualGap: {
+        type: ControlType.Number,
+        title: "Perpetual Gap (s)",
+        min: 0,
+        max: 5,
+        step: 0.1,
+        defaultValue: DEFAULT_LOAD_BAR.perpetualGap,
+        displayStepper: true,
+        hidden: (bar: any = {}) => {
+          const anim = bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
+          const perpetual =
+            bar.perpetual ?? DEFAULT_LOAD_BAR.perpetual;
+          return anim !== "circle" || !perpetual;
+        },
+      },
             barRadius: {
                 type: ControlType.Number,
                 title: "Radius",
@@ -1143,42 +1753,52 @@ addPropertyControls(Loading, {
                 max: 999,
                 defaultValue: DEFAULT_LOAD_BAR.barRadius,
                 displayStepper: true,
-                hidden: (bar: any = {}) => !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar),
+                hidden: (bar: any = {}) =>
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
             },
             barColor: {
                 type: ControlType.Color,
                 title: "Bar",
                 defaultValue: DEFAULT_LOAD_BAR.barColor,
-                hidden: (bar: any = {}) => !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar),
+                hidden: (bar: any = {}) =>
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
+            },
+            showTrack: {
+                type: ControlType.Boolean,
+                title: "Track",
+                defaultValue: DEFAULT_LOAD_BAR.showTrack,
+                hidden: (bar: any = {}) =>
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
+            },
+            startAtLabel: {
+                type: ControlType.Boolean,
+                title: "Start at Label",
+                defaultValue: DEFAULT_LOAD_BAR.startAtLabel,
+                hidden: (bar: any = {}) =>
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "circle",
             },
             trackColor: {
                 type: ControlType.Color,
                 title: "Track",
                 defaultValue: DEFAULT_LOAD_BAR.trackColor,
-                hidden: (bar: any = {}) => !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar),
+                hidden: (bar: any = {}) =>
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
+                    !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),
             },
-            waitBarFinish: {
-                type: ControlType.Boolean,
-                title: "Wait Bar Finish",
-                defaultValue: DEFAULT_LOAD_BAR.waitBarFinish,
-                hidden: (bar: any = {}) => !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar),
-            },
-            finishHoldSeconds: {
+            finishDelay: {
                 type: ControlType.Number,
-                title: "Finish Hold (s)",
+                title: "Finish Delay (s)",
                 min: 0,
                 max: 2,
                 step: 0.05,
-                defaultValue: DEFAULT_LOAD_BAR.finishHoldSeconds,
-                hidden: (bar: any = {}) =>
-                    !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar) ||
-                    !(bar.waitBarFinish ?? DEFAULT_LOAD_BAR.waitBarFinish),
+                defaultValue: DEFAULT_LOAD_BAR.finishDelay,
             },
             showBorder: {
                 type: ControlType.Boolean,
                 title: "Border",
                 defaultValue: DEFAULT_LOAD_BAR.showBorder,
-                hidden: (bar: any = {}) => !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar),
+                hidden: (bar: any = {}) =>
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
             },
             borderWidth: {
                 type: ControlType.Number,
@@ -1188,7 +1808,7 @@ addPropertyControls(Loading, {
                 defaultValue: DEFAULT_LOAD_BAR.borderWidth,
                 displayStepper: true,
                 hidden: (bar: any = {}) =>
-                    !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar) ||
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar" ||
                     !(bar.showBorder ?? DEFAULT_LOAD_BAR.showBorder),
             },
             borderColor: {
@@ -1196,7 +1816,7 @@ addPropertyControls(Loading, {
                 title: "Border Color",
                 defaultValue: DEFAULT_LOAD_BAR.borderColor,
                 hidden: (bar: any = {}) =>
-                    !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar) ||
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar" ||
                     !(bar.showBorder ?? DEFAULT_LOAD_BAR.showBorder),
             },
         },
@@ -1214,7 +1834,16 @@ addPropertyControls(Loading, {
                 type: ControlType.Color,
                 title: "Color",
                 defaultValue: DEFAULT_LOAD_BAR.labelColor,
-                hidden: (label: any = {}) => !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
+                hidden: (label: any = {}) =>
+                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
+            },
+            labelText: {
+                type: ControlType.String,
+                title: "Loading Text",
+                placeholder: "Loading",
+                defaultValue: DEFAULT_LOAD_BAR.labelText,
+                hidden: (label: any = {}) =>
+                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
             },
             labelFont: {
                 type: ControlType.Font,
@@ -1229,36 +1858,49 @@ addPropertyControls(Loading, {
                 displayFontSize: true,
                 displayTextAlignment: false,
                 controls: "extended",
-                hidden: (label: any = {}) => !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
+                hidden: (label: any = {}) =>
+                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
             },
             labelPosition: {
                 type: ControlType.Enum,
-                title: "Align",
+                title: "Horizontal Align",
                 options: ["left", "center", "right"],
                 optionTitles: ["Left", "Center", "Right"],
                 displaySegmentedControl: true,
                 defaultValue: DEFAULT_LOAD_BAR.labelPosition,
-                hidden: (label: any = {}) => !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
-            },
-            labelPlacement: {
-                type: ControlType.Enum,
-                title: "Placement",
-                options: ["inside", "outside"],
-                optionTitles: ["Inside", "Outside"],
-                displaySegmentedControl: true,
-                defaultValue: DEFAULT_LOAD_BAR.labelPlacement,
-                hidden: (label: any = {}) => !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
+                hidden: (label: any = {}) =>
+                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
             },
             labelOutsideDirection: {
                 type: ControlType.Enum,
-                title: "Outside Align",
-                options: ["top", "bottom"],
-                optionTitles: ["Top", "Bottom"],
+                title: "Vertical Align",
+                options: ["top", "center", "bottom"],
+                optionTitles: ["Top", "Center", "Bottom"],
                 displaySegmentedControl: true,
                 defaultValue: DEFAULT_LOAD_BAR.labelOutsideDirection,
                 hidden: (label: any = {}) =>
                     !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel) ||
-                    (label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement) !== "outside",
+                    !["outside", "inline"].includes(
+                        (label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement) as string
+                    ),
+            },
+            labelPlacement: {
+                type: ControlType.Enum,
+                title: "Placement",
+                options: ["inside", "outside", "inline"],
+                optionTitles: ["Inside", "Outside", "Inline"],
+                displaySegmentedControl: true,
+                defaultValue: DEFAULT_LOAD_BAR.labelPlacement,
+                hidden: (label: any = {}, props: any = {}) => {
+                    if (!(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel)) return true
+                    const anim =
+                        props?.loadBar?.animationStyle ??
+                        props?.bar?.animationStyle ??
+                        DEFAULT_LOAD_BAR.animationStyle
+                    return anim !== "circle"
+                        ? (label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement) === "inline"
+                        : false
+                },
             },
         },
     },

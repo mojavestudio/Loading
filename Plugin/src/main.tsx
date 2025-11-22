@@ -1,16 +1,23 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
-import { framer } from "framer-plugin"
 import App from "./App"
 import "./globals.css"
+import { framer, loadFramer } from "./framer-safe"
 
-framer.showUI({
-    position: "top right",
-    width: 320,
-    height: 760,
-    minWidth: 320,
-    maxWidth: 320,
-    resizable: false,
+// Initialize framer UI after loading
+loadFramer().then((framerInstance) => {
+    if (framerInstance && typeof framerInstance.showUI === "function") {
+        framerInstance.showUI({
+            position: "top right",
+            width: 320,
+            height: 760,
+            minWidth: 320,
+            maxWidth: 320,
+            resizable: false,
+        }).catch(() => {
+            // Ignore if showUI fails - app will still render
+        })
+    }
 })
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
