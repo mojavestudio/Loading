@@ -7,10 +7,11 @@
  * - Intrinsic sizing only (Framer handles layout/stacking)
  */
 
-/** @framerIntrinsicWidth  600 */
-/** @framerIntrinsicHeight 8  */
+/** @framerIntrinsicWidth  300 */
+/** @framerIntrinsicHeight 300 */
 /** @framerSupportedLayoutWidth any-prefer-fixed */
-/** @framerSupportedLayoutHeight any */
+/** @framerSupportedLayoutHeight any-prefer-fixed */
+/** @framerDisableUnlink */
 
 import * as React from "react"
 import { addPropertyControls, ControlType, RenderTarget } from "framer"
@@ -32,6 +33,8 @@ type FontControlValue = {
 
 type AnimationStyle = "bar" | "circle" | "text"
 type FillStyle = "solid" | "lines"
+type TextDisplayMode = "textOnly" | "textAndNumber" | "numberOnly"
+type TextFillStyle = "dynamic" | "static" | "oneByOne"
 
 type LoadBarConfig = {
     animationStyle: AnimationStyle
@@ -41,10 +44,17 @@ type LoadBarConfig = {
     perpetualGap: number
     barRadius: number
     barColor: string
+    thickness: number
     trackColor: string
     showTrack: boolean
     trackThickness: number
+    circleGap: number
     startAtLabel: boolean
+    textFillStyle: TextFillStyle
+    textFillColor: string
+    textPerpetual: boolean
+    textReverse: boolean
+    textDisplayMode: TextDisplayMode
     showLabel: boolean
     labelText: string
     labelColor: string
@@ -53,8 +63,10 @@ type LoadBarConfig = {
     labelFontWeight: string | number
     labelFont?: FontControlValue
     labelPosition: "left" | "center" | "right"
-    labelPlacement: "inside" | "outside" | "inline"
+    labelPlacement: "inside" | "outside" | "inline" | "hidden"
     labelOutsideDirection: "top" | "center" | "bottom"
+    labelOffsetX?: number
+    labelOffsetY?: number
     finishDelay: number
     showBorder: boolean
     borderWidth: number
@@ -71,11 +83,11 @@ type Props = {
     oncePerSession: boolean
     runInPreview: boolean
     onReady?: (event?: any) => void
-    customReadySelector: string
-    customReadyEvent: string
     labelPosition?: "left" | "center" | "right"
-    labelPlacement?: "inside" | "outside" | "inline"
+    labelPlacement?: "inside" | "outside" | "inline" | "hidden"
     labelOutsideDirection?: "top" | "center" | "bottom"
+    labelOffsetX?: number
+    labelOffsetY?: number
     loadBar?: Partial<LoadBarConfig>
     bar?: Partial<LoadBarConfig>
     label?: Partial<LoadBarConfig>
@@ -83,30 +95,6 @@ type Props = {
     // Auto-hide when complete
     hideWhenComplete: boolean
 
-    // Variant to switch to when complete (for parent component control)
-    completeVariant?: string
-
-    // Progress visuals (legacy overrides; prefer loadBar)
-    barRadius?: number
-    barColor?: string
-    trackColor?: string
-    showTrack?: boolean
-    trackThickness?: number
-    startAtLabel?: boolean
-    showLabel?: boolean
-    labelText?: string
-    labelColor?: string
-    labelFontSize?: number
-    labelFontFamily?: string
-    labelFontWeight?: string | number
-
-    // Finish behavior
-    finishDelay?: number
-
-    // Border (optional)
-    showBorder?: boolean
-    borderWidth?: number
-    borderColor?: string
 }
 
 const SESSION_FLAG = "PageReadyGate:ready"
@@ -119,10 +107,17 @@ const DEFAULT_LOAD_BAR: LoadBarConfig = {
     perpetualGap: 0.5,
     barRadius: 999,
     barColor: "#854FFF",
+    thickness: 8,
     trackColor: "rgba(0,0,0,.12)",
     showTrack: true,
     trackThickness: 2,
+    circleGap: 12,
     startAtLabel: false,
+    textFillStyle: "dynamic",
+    textFillColor: "#854FFF",
+    textPerpetual: false,
+    textReverse: false,
+    textDisplayMode: "textAndNumber",
     showLabel: true,
     labelText: "Loading",
     labelColor: "#222",
@@ -139,6 +134,8 @@ const DEFAULT_LOAD_BAR: LoadBarConfig = {
     labelPosition: "right",
     labelPlacement: "inside",
     labelOutsideDirection: "bottom",
+    labelOffsetX: 0,
+    labelOffsetY: 0,
     finishDelay: 0.12,
     showBorder: false,
     borderWidth: 2,
@@ -225,6 +222,12 @@ export default function Loading(p: Props) {
         loadBarOverrides.barColor,
         DEFAULT_LOAD_BAR.barColor
     )!
+    const thickness = coalesce(
+        p.thickness,
+        nestedBarOverrides.thickness,
+        loadBarOverrides.thickness,
+        DEFAULT_LOAD_BAR.thickness
+    )!
     const trackColor = coalesce(
         p.trackColor,
         nestedBarOverrides.trackColor,
@@ -241,6 +244,37 @@ export default function Loading(p: Props) {
         nestedBarOverrides.trackThickness,
         loadBarOverrides.trackThickness,
         DEFAULT_LOAD_BAR.trackThickness
+    )!
+    const circleGap = coalesce(
+        p.circleGap,
+        nestedBarOverrides.circleGap,
+        loadBarOverrides.circleGap,
+        DEFAULT_LOAD_BAR.circleGap
+    )!
+    const textDisplayMode = coalesce(
+        nestedBarOverrides.textDisplayMode,
+        loadBarOverrides.textDisplayMode,
+        DEFAULT_LOAD_BAR.textDisplayMode
+    )!
+    const textFillStyle = coalesce(
+        nestedBarOverrides.textFillStyle,
+        loadBarOverrides.textFillStyle,
+        DEFAULT_LOAD_BAR.textFillStyle
+    )!
+    const textFillColor = coalesce(
+        nestedBarOverrides.textFillColor,
+        loadBarOverrides.textFillColor,
+        DEFAULT_LOAD_BAR.textFillColor
+    )!
+    const textPerpetual = coalesce(
+        nestedBarOverrides.textPerpetual,
+        loadBarOverrides.textPerpetual,
+        DEFAULT_LOAD_BAR.textPerpetual
+    )!
+    const textReverse = coalesce(
+        nestedBarOverrides.textReverse,
+        loadBarOverrides.textReverse,
+        DEFAULT_LOAD_BAR.textReverse
     )!
     const startAtLabel = coalesce(
         p.startAtLabel,
@@ -327,7 +361,9 @@ export default function Loading(p: Props) {
         DEFAULT_LOAD_BAR.labelPlacement
     )!
     const resolvedLabelPlacement =
-        animationStyle === "circle"
+        labelPlacement === "hidden"
+            ? "hidden"
+            : animationStyle === "circle"
             ? labelPlacement
             : labelPlacement === "inline"
             ? "inside"
@@ -338,6 +374,18 @@ export default function Loading(p: Props) {
         loadBarOverrides.labelOutsideDirection,
         DEFAULT_LOAD_BAR.labelOutsideDirection
     )!
+    const labelOffsetX = coalesce(
+        p.labelOffsetX,
+        nestedLabelOverrides.labelOffsetX,
+        loadBarOverrides.labelOffsetX,
+        DEFAULT_LOAD_BAR.labelOffsetX ?? 0
+    ) ?? 0
+    const labelOffsetY = coalesce(
+        p.labelOffsetY,
+        nestedLabelOverrides.labelOffsetY,
+        loadBarOverrides.labelOffsetY,
+        DEFAULT_LOAD_BAR.labelOffsetY ?? 0
+    ) ?? 0
 
     const loadBarConfig: LoadBarConfig = {
         animationStyle,
@@ -361,6 +409,11 @@ export default function Loading(p: Props) {
         labelPosition,
         labelPlacement,
         labelOutsideDirection,
+        textDisplayMode,
+        textFillStyle,
+        textFillColor,
+        textPerpetual,
+        textReverse,
         finishDelay,
         showBorder,
         borderWidth,
@@ -541,21 +594,7 @@ export default function Loading(p: Props) {
 
         const baseReady = waitWindow
 
-        const customReadyHandle = createCustomReadyWait({
-            selector: p.customReadySelector,
-            eventName: p.customReadyEvent,
-        })
-        if (customReadyHandle) {
-            console.log(
-                "[Gate] Waiting for custom selector",
-                p.customReadySelector,
-                "event:",
-                p.customReadyEvent || "load"
-            )
-        }
-        const ready = customReadyHandle
-            ? Promise.all([baseReady, customReadyHandle.promise]).then(() => {})
-            : baseReady
+        const ready = baseReady
 
         let timeoutHandle: number | undefined
         let timeoutReached = false
@@ -693,7 +732,6 @@ export default function Loading(p: Props) {
         return () => {
             cancelled = true
             if (timeoutHandle) clearTimeout(timeoutHandle)
-            customReadyHandle?.cancel()
             minTimerCompleteRef.current = false
             readyCompleteRef.current = false
             gateStartRef.current = null
@@ -704,8 +742,6 @@ export default function Loading(p: Props) {
         p.timeoutSeconds,
         p.oncePerSession,
         p.onReady,
-        p.customReadySelector,
-        p.customReadyEvent,
         finishDelay,
         progress,
     ])
@@ -755,6 +791,7 @@ export default function Loading(p: Props) {
         fontWeight: labelFontWeight,
         color: labelColor,
         pointerEvents: "none",
+        whiteSpace: "nowrap",
     }
 
     const appliedFont = fontOverride || DEFAULT_LOAD_BAR.labelFont
@@ -770,38 +807,64 @@ export default function Loading(p: Props) {
             appliedFont.lineHeight as React.CSSProperties["lineHeight"]
 
     const labelSpacing = 6
+    const outsideSpacing = 5
+    const BAR_SIDE_MARGIN = 15
+    const BAR_LABEL_GAP = 5
+    const isBarAnimation = animationStyle === "bar"
     const outsidePadding = {
         top: 0,
-        right: 0,
+        right: isBarAnimation ? BAR_SIDE_MARGIN : 0,
         bottom: 0,
-        left: 0,
+        left: isBarAnimation ? BAR_SIDE_MARGIN : 0,
     }
 
     if (labelOutside) {
+        const labelW = labelBounds.width || 0
+        const labelH = labelBounds.height || 0
         if (labelOutsideDirection === "top") {
-            outsidePadding.top =
-                (labelBounds.height || 0) + labelSpacing
+            outsidePadding.top = Math.max(outsidePadding.top, labelH + outsideSpacing)
         } else if (labelOutsideDirection === "bottom") {
-            outsidePadding.bottom =
-                (labelBounds.height || 0) + labelSpacing
-        } else {
-            const horizontalSpace = (labelBounds.width || 0) + labelSpacing
-            const horizontalAnchor =
-                labelPosition === "center" ? "right" : labelPosition
-            if (horizontalAnchor === "left") {
-                outsidePadding.left = horizontalSpace
-            } else if (horizontalAnchor === "right") {
-                outsidePadding.right = horizontalSpace
+            outsidePadding.bottom = Math.max(
+                outsidePadding.bottom,
+                labelH + outsideSpacing
+            )
+        }
+
+        const wantsHorizontalReserve =
+            labelPosition === "left" || labelPosition === "right"
+
+        if (wantsHorizontalReserve && !isBarAnimation) {
+            const reserve = labelW + outsideSpacing
+            if (labelPosition === "left") {
+                outsidePadding.left = Math.max(outsidePadding.left, reserve)
+            } else {
+                outsidePadding.right = Math.max(outsidePadding.right, reserve)
             }
         }
     }
 
+    // When Framer uses fixed sizing, it wraps the component and passes width: "100%", height: "100%"
+    // The actual pixel dimensions come from the container size measurement
+    // Prefer style prop when it's a number (direct pixel value), otherwise use measured container size
+    // Use dynamic intrinsic size based on animation style as fallback to prevent 0x0 sizing issues
+    const intrinsicSize = (() => {
+        switch (animationStyle) {
+            case "circle":
+                return { width: 300, height: 300 }
+            case "bar":
+                return { width: 600, height: 50 }
+            case "text":
+                return { width: 300, height: 50 }
+            default:
+                return { width: 300, height: 300 }
+        }
+    })()
     const measuredWidth =
-        containerSize.width ||
-        (typeof p.style?.width === "number" ? p.style.width : 600)
+        (typeof p.style?.width === "number" ? p.style.width : null) ??
+        (containerSize.width > 0 ? containerSize.width : intrinsicSize.width)
     const measuredHeight =
-        containerSize.height ||
-        (typeof p.style?.height === "number" ? p.style.height : 48)
+        (typeof p.style?.height === "number" ? p.style.height : null) ??
+        (containerSize.height > 0 ? containerSize.height : intrinsicSize.height)
     const contentWidth = Math.max(
         0,
         measuredWidth - outsidePadding.left - outsidePadding.right
@@ -810,30 +873,54 @@ export default function Loading(p: Props) {
         0,
         measuredHeight - outsidePadding.top - outsidePadding.bottom
     )
+    const barContainerHeight = Math.max(
+        thickness,
+        Math.ceil(labelFontSize * 1.2 + 4)
+    )
 
-    const insideLabelTransform: string[] = []
-    const insideLabelStyle: React.CSSProperties = {
-        ...baseLabelStyle,
+    const insideLabelOffset: string | undefined = (() => {
+        const transforms: string[] = []
+        if (labelOffsetX) transforms.push(`translateX(${labelOffsetX}px)`)
+        if (labelOffsetY) transforms.push(`translateY(${labelOffsetY}px)`)
+        return transforms.length ? transforms.join(" ") : undefined
+    })()
+
+    const insideBarPaddingX = Math.max(6, Math.round(thickness * 0.2))
+    const insideBarPaddingY = Math.max(4, Math.round(thickness * 0.15))
+    const insideVerticalInset = Math.max(
+        1,
+        showBorder ? Math.round(borderWidth || 0) : 0,
+        Math.round(thickness * 0.05)
+    )
+    const insidePaddingTop =
+        labelOutsideDirection === "top" ? insideVerticalInset : insideBarPaddingY
+    const insidePaddingBottom =
+        labelOutsideDirection === "bottom"
+            ? insideVerticalInset
+            : insideBarPaddingY
+    const insideHorizontalInset = 5
+    const insidePaddingLeft =
+        insideBarPaddingX + (labelPosition === "left" ? insideHorizontalInset : 0)
+    const insidePaddingRight =
+        insideBarPaddingX + (labelPosition === "right" ? insideHorizontalInset : 0)
+
+    // Flex-based label overlay for bars (avoids absolute-position drift on canvas)
+    const insideLabelOverlayBar: React.CSSProperties = {
         position: "absolute",
-    }
-    if (resolvedLabelPlacement === "inside") {
-        insideLabelStyle.top = "50%"
-        insideLabelTransform.push("translateY(-50%)")
-        switch (labelPosition) {
-            case "left":
-                insideLabelStyle.left = 8
-                break
-            case "center":
-                insideLabelStyle.left = "50%"
-                insideLabelTransform.push("translateX(-50%)")
-                break
-            default:
-                insideLabelStyle.right = 8
-                break
-        }
-    }
-    if (insideLabelTransform.length > 0) {
-        insideLabelStyle.transform = insideLabelTransform.join(" ")
+        inset: 0,
+        display: "flex",
+        alignItems:
+            labelOutsideDirection === "top"
+                ? "flex-start"
+                : labelOutsideDirection === "center"
+                ? "center"
+            : "flex-end",
+        justifyContent: mapLabelAlign(labelPosition),
+        pointerEvents: "none",
+        paddingLeft: insidePaddingLeft,
+        paddingRight: insidePaddingRight,
+        paddingTop: insidePaddingTop,
+        paddingBottom: insidePaddingBottom,
     }
 
     const outsideLabelTransform: string[] = []
@@ -844,19 +931,17 @@ export default function Loading(p: Props) {
     if (resolvedLabelPlacement === "outside") {
         if (labelOutsideDirection === "top") {
             outsideLabelStyle.top = 0
+            outsideLabelTransform.push("translateY(-100%)")
         } else if (labelOutsideDirection === "center") {
             outsideLabelStyle.top = "50%"
             outsideLabelTransform.push("translateY(-50%)")
         } else {
-            outsideLabelStyle.bottom = 0
+            outsideLabelStyle.top = `calc(100% + ${outsideSpacing}px)`
         }
-        const outsideHorizontal =
-            labelOutsideDirection === "center" && labelPosition === "center"
-                ? "right"
-                : labelPosition
-        switch (outsideHorizontal) {
+        switch (labelPosition) {
             case "left":
                 outsideLabelStyle.left = 0
+                outsideLabelTransform.push(`translateX(calc(-100% - ${outsideSpacing}px))`)
                 break
             case "center":
                 outsideLabelStyle.left = "50%"
@@ -864,17 +949,32 @@ export default function Loading(p: Props) {
                 break
             default:
                 outsideLabelStyle.right = 0
+                outsideLabelTransform.push(`translateX(calc(100% + ${outsideSpacing}px))`)
                 break
+        }
+        if (labelOffsetX !== 0) {
+            outsideLabelTransform.push(`translateX(${labelOffsetX}px)`)
+        }
+        if (labelOffsetY !== 0) {
+            outsideLabelTransform.push(`translateY(${labelOffsetY}px)`)
         }
     }
     if (outsideLabelTransform.length > 0) {
         outsideLabelStyle.transform = outsideLabelTransform.join(" ")
     }
 
+    // Use measured container size when available, otherwise use intrinsic size
+    // This ensures the component respects the dimensions set by Framer via setAttributes
+    const effectiveWidth = containerSize.width > 0 ? containerSize.width : intrinsicSize.width
+    const effectiveHeight = containerSize.height > 0 ? containerSize.height : intrinsicSize.height
+    
     const rootStyle: React.CSSProperties = {
         ...p.style,
         width: "100%",
         height: "100%",
+        // Set minWidth/minHeight to ensure component doesn't shrink below measured/intrinsic size
+        minWidth: effectiveWidth,
+        minHeight: effectiveHeight,
         position: "relative",
         boxSizing: "border-box",
         paddingTop: outsidePadding.top,
@@ -931,6 +1031,35 @@ export default function Loading(p: Props) {
         }
     }, [animationStyle, perpetual, perpetualGap])
     
+    // Perpetual animation state for text mode
+    const [textPerpetualProgress, setTextPerpetualProgress] = React.useState(0)
+
+    React.useEffect(() => {
+        if (animationStyle !== "text" || textFillStyle === "static" || !textPerpetual) {
+            setTextPerpetualProgress(0)
+            return
+        }
+        let animationId: number | null = null
+        let startTime: number | null = null
+        let isAnimating = true
+        const duration = 1600
+
+        const animate = (timestamp: number) => {
+            if (startTime === null) startTime = timestamp
+            const elapsed = timestamp - startTime
+            const progress = (elapsed % duration) / duration
+            setTextPerpetualProgress(progress)
+            if (isAnimating) animationId = requestAnimationFrame(animate)
+        }
+
+        animationId = requestAnimationFrame(animate)
+
+        return () => {
+            isAnimating = false
+            if (animationId !== null) cancelAnimationFrame(animationId)
+        }
+    }, [animationStyle, textPerpetual, textFillStyle])
+    
     // Get the actual progress value for rendering - make it reactive
     const [currentProgress, setCurrentProgress] = React.useState(0)
     
@@ -957,31 +1086,180 @@ export default function Loading(p: Props) {
     const progressValue = perpetual && animationStyle === "circle" 
         ? perpetualProgress 
         : currentProgress
+    const textFillProgress =
+        animationStyle === "text" && textPerpetual && progressValue < 0.999
+            ? textPerpetualProgress
+            : progressValue
     const initialLabelValue = formatLabel(progressValue)
     
     // Render based on animation style
     const renderContent = () => {
         const trackBackground = showTrack ? trackColor : "transparent"
         if (animationStyle === "text") {
-            // Text only mode - always show label if text mode
+            // Text style with optional glyph fill (no bar)
+            const textMode = textDisplayMode || "textAndNumber"
+            const pct = Math.round(Math.max(0, Math.min(1, progressValue)) * 100)
+            const prefix = (labelText || DEFAULT_LOAD_BAR.labelText || "").trim()
+            const textContent =
+                textMode === "textOnly"
+                    ? prefix || ""
+                    : textMode === "numberOnly"
+                    ? `${pct}%`
+                    : prefix
+                    ? `${prefix} ${pct}%`
+                    : `${pct}%`
+
+            const isStaticFill = textFillStyle === "static"
+            const isOneByOneFill = textFillStyle === "oneByOne"
+
+            if (isStaticFill) {
+                return (
+                    <div
+                        style={{
+                            width: "100%",
+                            height: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "flex-start",
+                            position: "relative",
+                        }}
+                    >
+                        {showLabel && (
+                            <div
+                                ref={setLabelRef}
+                                style={{
+                                    ...baseLabelStyle,
+                                    position: "relative",
+                                }}
+                            >
+                                {textContent}
+                            </div>
+                        )}
+                    </div>
+                )
+            }
+
+            // Text-only fill: base muted text + clipped overlay that fills the glyphs
+            const fillPct = Math.max(0, Math.min(1, textFillProgress)) * 100
+            const baseTextColor =
+                trackColor ||
+                labelColor ||
+                (baseLabelStyle.color as string) ||
+                "rgba(255,255,255,0.35)"
+            const clipPercent = Math.max(0, Math.min(100, fillPct))
+            const maskStop = textReverse
+                ? Math.max(0, 100 - clipPercent)
+                : clipPercent
+            const maskImage = textReverse
+                ? `linear-gradient(90deg, transparent ${maskStop}%, #000 ${maskStop}%)`
+                : `linear-gradient(90deg, #000 ${maskStop}%, transparent ${maskStop}%)`
+            const fillColor = textFillColor || barColor
+            const directionDeg = textReverse ? 270 : 90
+
+            if (isOneByOneFill) {
+                const letters = Array.from(textContent)
+                const total = Math.max(1, letters.length)
+                const scaled = Math.max(0, Math.min(1, textFillProgress)) * total
+                const filledCount = Math.min(total, Math.floor(scaled + 1e-6))
+
+                return (
+                    <div
+                        style={{
+                            width: "100%",
+                            height: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "flex-start",
+                            position: "relative",
+                        }}
+                    >
+                        {showLabel && (
+                            <div
+                                ref={setLabelRef}
+                                style={{
+                                    position: "relative",
+                                    display: "inline-block",
+                                    lineHeight: 1.2,
+                                    padding: "2px 4px",
+                                }}
+                            >
+                                {letters.map((ch, idx) => {
+                                    const position = textReverse ? total - 1 - idx : idx
+                                    const isFilled = position < filledCount
+                                    const spanStyle: React.CSSProperties = {
+                                        ...baseLabelStyle,
+                                        color: isFilled ? fillColor : baseTextColor,
+                                        position: "relative",
+                                    }
+                                    return (
+                                        <span key={idx} style={spanStyle}>
+                                            {ch}
+                                        </span>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )
+            }
+
             return (
-                <div style={{
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    position: "relative",
-                }}>
+                <div
+                    style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-start",
+                        position: "relative",
+                    }}
+                >
                     {showLabel && (
                         <div
-                            ref={setLabelRef}
                             style={{
-                                ...baseLabelStyle,
                                 position: "relative",
+                                display: "inline-block",
+                                lineHeight: 1.2,
+                                padding: "2px 4px",
                             }}
                         >
-                            {initialLabelValue}
+                            <span
+                                style={{
+                                    ...baseLabelStyle,
+                                    color: baseTextColor,
+                                    position: "relative",
+                                    zIndex: 1,
+                                }}
+                            >
+                                {textContent}
+                            </span>
+                            <span
+                                style={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    pointerEvents: "none",
+                                    zIndex: 2,
+                                    maskImage,
+                                    WebkitMaskImage: maskImage,
+                                    maskRepeat: "no-repeat",
+                                    WebkitMaskRepeat: "no-repeat",
+                                }}
+                            >
+                                <span
+                                    ref={setLabelRef}
+                                    style={{
+                                        ...baseLabelStyle,
+                                        color: "transparent",
+                                        background: fillColor,
+                                        WebkitBackgroundClip: "text",
+                                        backgroundClip: "text",
+                                        WebkitTextFillColor: "transparent",
+                                        position: "relative",
+                                    }}
+                                >
+                                    {textContent}
+                                </span>
+                            </span>
                         </div>
                     )}
                 </div>
@@ -989,28 +1267,41 @@ export default function Loading(p: Props) {
         }
 
         if (animationStyle === "circle") {
-            // Circle rendering
+            // Circle rendering - fill the available space accounting for stroke width
             const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
-            const circleBoxSize = Math.max(0, baseCircleSize - 15)
-            const circleSize = circleBoxSize * 0.7
-            const circleRadius = Math.max(
-                0,
-                circleSize / 2 - (showBorder ? borderWidth : 0)
-            )
-            const strokeWidth =
-                fillStyle === "lines" ? lineWidth : showBorder ? borderWidth : 0
+            const strokeWidth = thickness
+            const trackStroke = showTrack ? trackThickness : 0
+            const maxStroke = Math.max(strokeWidth, trackStroke)
+            
+            // Calculate circle size to fill available space
+            // The SVG needs to be large enough to accommodate the circle + stroke width
+            // Stroke extends half width inward and half outward from the path
+            const strokePadding = maxStroke / 2 + 2 // Half stroke width on each side + 2px safety margin
+            const availableSize = Math.max(0, baseCircleSize - strokePadding * 2)
+            
+            // The SVG size should be the available size (this is the viewport)
+            const svgSize = availableSize
+            
+            // The circle radius is half the available size (stroke will extend from this)
+            const circleRadius = Math.max(0, availableSize / 2)
+            
+            // The actual circle path size (for positioning calculations)
+            const circleSize = svgSize
+            
             const circumference = 2 * Math.PI * circleRadius
             const labelAngle = getInlineAngle(labelPosition, labelOutsideDirection)
             const rotationDeg = startAtLabel ? labelAngle : -90
-            const gapDegrees = 12
+            const gapDegrees = circleGap
             const gapLength = (gapDegrees / 360) * circumference
             const gapOffset =
                 ((labelAngle - rotationDeg + 360) % 360) / 360 * circumference -
                 gapLength / 2
             const progressCap: React.SVGAttributes<SVGCircleElement>["strokeLinecap"] =
                 progressValue <= 0.001 ? "butt" : "round"
-            const circleOffsetX = (contentWidth - circleSize) / 2
-            const circleOffsetY = (contentHeight - circleSize) / 2
+            
+            // Center the SVG in the content area (flexbox will handle this, but we calculate for labels)
+            const circleOffsetX = (contentWidth - svgSize) / 2
+            const circleOffsetY = (contentHeight - svgSize) / 2
             const circleLabelInset = Math.min(16, Math.max(6, circleSize * 0.08))
             
             return (
@@ -1021,21 +1312,26 @@ export default function Loading(p: Props) {
                     alignItems: "center",
                     justifyContent: "center",
                     position: "relative",
+                    overflow: "visible", // Ensure stroke isn't clipped
                 }}>
                     <svg
-                        width={circleSize}
-                        height={circleSize}
-                        style={{ transform: `rotate(${rotationDeg}deg)` }}
+                        width={svgSize}
+                        height={svgSize}
+                        style={{ 
+                            transform: `rotate(${rotationDeg}deg)`,
+                            display: "block", // Remove any inline spacing
+                        }}
+                        viewBox={`0 0 ${svgSize} ${svgSize}`} // Ensure proper coordinate system
                     >
                         {/* Background circle (track) */}
                         {showTrack && (
                             <circle
-                                cx={circleSize / 2}
-                                cy={circleSize / 2}
+                                cx={svgSize / 2}
+                                cy={svgSize / 2}
                                 r={circleRadius}
                                 fill="none"
                                 stroke={trackColor}
-                                strokeWidth={trackThickness || strokeWidth || 2}
+                                strokeWidth={trackThickness}
                                 strokeDasharray={`${circumference - gapLength} ${gapLength}`}
                                 strokeDashoffset={gapOffset}
                                 strokeLinecap="round"
@@ -1044,12 +1340,12 @@ export default function Loading(p: Props) {
                         {/* Progress circle */}
                         {fillStyle === "solid" ? (
                             <circle
-                                cx={circleSize / 2}
-                                cy={circleSize / 2}
+                                cx={svgSize / 2}
+                                cy={svgSize / 2}
                                 r={circleRadius}
                                 fill="none"
                                 stroke={progressValue > 0 ? barColor : "transparent"}
-                                strokeWidth={strokeWidth || 2}
+                                strokeWidth={strokeWidth}
                                 strokeDasharray={`${Math.max(
                                     0,
                                     (circumference - gapLength) * progressValue
@@ -1072,11 +1368,11 @@ export default function Loading(p: Props) {
                                     )
                                     if (angleDelta <= gapDegrees / 2) return null
                                     const rad = (angle * Math.PI) / 180
-                                    const innerRadius = Math.max(0, circleRadius - lineWidth)
-                                    const x1 = circleSize / 2 + circleRadius * Math.cos(rad)
-                                    const y1 = circleSize / 2 + circleRadius * Math.sin(rad)
-                                    const x2 = circleSize / 2 + innerRadius * Math.cos(rad)
-                                    const y2 = circleSize / 2 + innerRadius * Math.sin(rad)
+                                    const innerRadius = Math.max(0, circleRadius - thickness)
+                                    const x1 = svgSize / 2 + circleRadius * Math.cos(rad)
+                                    const y1 = svgSize / 2 + circleRadius * Math.sin(rad)
+                                    const x2 = svgSize / 2 + innerRadius * Math.cos(rad)
+                                    const y2 = svgSize / 2 + innerRadius * Math.sin(rad)
                                     return (
                                         <line
                                             key={i}
@@ -1085,7 +1381,7 @@ export default function Loading(p: Props) {
                                             x2={x2}
                                             y2={y2}
                                             stroke={barColor}
-                                            strokeWidth={lineWidth}
+                                            strokeWidth={thickness}
                                             strokeLinecap="round"
                                         />
                                     )
@@ -1097,22 +1393,23 @@ export default function Loading(p: Props) {
                         <div
                             style={{
                                 position: "absolute",
-                                width: circleSize,
-                                height: circleSize,
+                                width: svgSize,
+                                height: svgSize,
                                 left: circleOffsetX,
                                 top: circleOffsetY,
                                 display: "flex",
-                                alignItems: "center",
+                                alignItems:
+                                    labelOutsideDirection === "top"
+                                        ? "flex-start"
+                                        : labelOutsideDirection === "bottom"
+                                        ? "flex-end"
+                                        : "center",
                                 justifyContent: mapLabelAlign(labelPosition),
                                 pointerEvents: "none",
-                                paddingLeft:
-                                    labelPosition === "left"
-                                        ? circleLabelInset
-                                        : 0,
-                                paddingRight:
-                                    labelPosition === "right"
-                                        ? circleLabelInset
-                                        : 0,
+                                paddingLeft: circleLabelInset,
+                                paddingRight: circleLabelInset,
+                                paddingTop: circleLabelInset,
+                                paddingBottom: circleLabelInset,
                             }}
                         >
                             <div
@@ -1120,11 +1417,7 @@ export default function Loading(p: Props) {
                                 style={{
                                     ...baseLabelStyle,
                                     position: "relative",
-                                    top: "auto",
-                                    bottom: "auto",
-                                    left: "auto",
-                                    right: "auto",
-                                    transform: "none",
+                                    transform: insideLabelOffset,
                                 }}
                             >
                                 {initialLabelValue}
@@ -1135,8 +1428,8 @@ export default function Loading(p: Props) {
                         <div
                             style={{
                                 position: "absolute",
-                                width: circleSize,
-                                height: circleSize,
+                                width: svgSize,
+                                height: svgSize,
                                 left: circleOffsetX,
                                 top: circleOffsetY,
                                 pointerEvents: "none",
@@ -1146,8 +1439,11 @@ export default function Loading(p: Props) {
                                 const angle = getInlineAngle(labelPosition, labelOutsideDirection)
                                 const rad = (angle * Math.PI) / 180
                                 const labelRadius = circleRadius
-                                const lx = circleSize / 2 + labelRadius * Math.cos(rad)
-                                const ly = circleSize / 2 + labelRadius * Math.sin(rad)
+                                const lx = svgSize / 2 + labelRadius * Math.cos(rad)
+                                const ly = svgSize / 2 + labelRadius * Math.sin(rad)
+                                const inlineTransforms: string[] = ["translate(-50%, -50%)"]
+                                if (labelOffsetX) inlineTransforms.push(`translateX(${labelOffsetX}px)`)
+                                if (labelOffsetY) inlineTransforms.push(`translateY(${labelOffsetY}px)`)
                                 return (
                                     <div
                                         ref={setLabelRef}
@@ -1156,7 +1452,7 @@ export default function Loading(p: Props) {
                                             position: "absolute",
                                             left: lx,
                                             top: ly,
-                                            transform: "translate(-50%, -50%)",
+                                            transform: inlineTransforms.join(" "),
                                             whiteSpace: "nowrap",
                                         }}
                                     >
@@ -1172,36 +1468,60 @@ export default function Loading(p: Props) {
 
         // Bar rendering (default)
         if (fillStyle === "solid") {
-            // Solid bar (existing behavior)
+            // Solid bar - use content width and center
             return (
                 <div
                     style={{
-                        width: "100%",
-                        height: "100%",
-                        background: trackBackground,
-                        borderRadius: barRadius,
-                        overflow: "hidden",
-                        border:
-                            showBorder && borderWidth > 0
-                                ? `${borderWidth}px solid ${borderColor}`
-                                : "none",
-                        boxSizing: "border-box",
+                        width: `${contentWidth}px`,
+                        height: `${barContainerHeight}px`,
                         position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-start",
+                        boxSizing: "border-box",
                     }}
                 >
-                    <motion.div
+                    <div
                         style={{
+                            position: "absolute",
+                            top: "50%",
+                            left: 0,
                             width: "100%",
-                            height: "100%",
-                            background: barColor,
+                            height: `${thickness}px`,
+                            background: trackBackground,
                             borderRadius: barRadius,
-                            transformOrigin: "left center",
-                            scaleX: progress,
+                            overflow: "hidden",
+                            border:
+                                showBorder && borderWidth > 0
+                                    ? `${borderWidth}px solid ${borderColor}`
+                                    : "none",
+                            boxSizing: "border-box",
+                            transform: "translateY(-50%)",
                         }}
-                    />
+                    >
+                        <motion.div
+                            style={{
+                                width: "100%",
+                                height: "100%",
+                                background: barColor,
+                                borderRadius: barRadius,
+                                transformOrigin: "left center",
+                                scaleX: progress,
+                            }}
+                        />
+                    </div>
                     {labelInside && (
-                        <div ref={setLabelRef} style={insideLabelStyle}>
-                            {initialLabelValue}
+                        <div style={insideLabelOverlayBar}>
+                            <div
+                                ref={setLabelRef}
+                                style={{
+                                    ...baseLabelStyle,
+                                    whiteSpace: "nowrap",
+                                    transform: insideLabelOffset,
+                                }}
+                            >
+                                {initialLabelValue}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -1209,44 +1529,69 @@ export default function Loading(p: Props) {
         } else {
             // Lines mode for bar
             const numLines = Math.floor(progressValue * 20)
+            const lineRadius = Math.max(0, Math.min(barRadius, thickness / 2))
             return (
                 <div
                     style={{
-                        width: "100%",
-                        height: "100%",
-                        background: trackBackground,
-                        borderRadius: barRadius,
-                        overflow: "hidden",
-                        border:
-                            showBorder && borderWidth > 0
-                                ? `${borderWidth}px solid ${borderColor}`
-                                : "none",
-                        boxSizing: "border-box",
-                        display: "flex",
-                        gap: 2,
-                        padding: 2,
+                        width: `${contentWidth}px`, // Use actual content width instead of 100%
+                        height: `${barContainerHeight}px`,
                         position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-start",
+                        boxSizing: "border-box",
                     }}
                 >
-                    {Array.from({ length: 20 }).map((_, i) => {
-                        const shouldShow = i < numLines
-                        return (
-                            <div
-                                key={i}
-                                style={{
-                                    flex: 1,
-                                    height: "100%",
-                                    background: shouldShow ? barColor : trackBackground,
-                                    borderRadius: 2,
-                                    opacity: shouldShow ? 1 : showTrack ? 0.3 : 0,
-                                    transition: "all 0.2s ease",
-                                }}
-                            />
-                        )
-                    })}
+                    <div
+                        style={{
+                            position: "absolute",
+                            top: "50%",
+                            left: 0,
+                            width: "100%",
+                            height: `${thickness}px`,
+                            background: trackBackground,
+                            borderRadius: barRadius,
+                            overflow: "hidden",
+                            border:
+                                showBorder && borderWidth > 0
+                                    ? `${borderWidth}px solid ${borderColor}`
+                                    : "none",
+                            boxSizing: "border-box",
+                            display: "flex",
+                            gap: 2,
+                            padding: 2,
+                            transform: "translateY(-50%)",
+                        }}
+                    >
+                        {Array.from({ length: 20 }).map((_, i) => {
+                            const shouldShow = i < numLines
+                            return (
+                                <div
+                                    key={i}
+                                    style={{
+                                        flex: 1,
+                                        height: "100%",
+                                        background: shouldShow ? barColor : trackBackground,
+                                        borderRadius: lineRadius,
+                                        opacity: shouldShow ? 1 : showTrack ? 0.3 : 0,
+                                        transition: "all 0.2s ease",
+                                    }}
+                                />
+                            )
+                        })}
+                    </div>
                     {labelInside && (
-                        <div ref={setLabelRef} style={insideLabelStyle}>
-                            {initialLabelValue}
+                        <div style={insideLabelOverlayBar}>
+                            <div
+                                ref={setLabelRef}
+                                style={{
+                                    ...baseLabelStyle,
+                                    whiteSpace: "nowrap",
+                                    transform: insideLabelOffset,
+                                }}
+                            >
+                                {initialLabelValue}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -1254,9 +1599,24 @@ export default function Loading(p: Props) {
         }
     }
 
+    // Content wrapper to center the content within the container
+    // Use absolute positioning to fill the space inside the root padding
+    const contentWrapperStyle: React.CSSProperties = {
+        position: "absolute",
+        top: outsidePadding.top,
+        left: outsidePadding.left,
+        right: outsidePadding.right,
+        bottom: outsidePadding.bottom,
+        display: "flex",
+        alignItems: "center", // Center vertically
+        justifyContent: animationStyle === "circle" ? "center" : "flex-start", // Left for bar/text, center for circle
+    }
+
     return (
         <div ref={rootRef} style={rootStyle}>
-            {renderContent()}
+            <div style={contentWrapperStyle}>
+                {renderContent()}
+            </div>
             {labelOutside && (
                 <div ref={setLabelRef} style={outsideLabelStyle}>
                     {initialLabelValue}
@@ -1504,130 +1864,6 @@ function createGateEvent(target: EventTarget | null) {
     }
 }
 
-type CustomReadyOptions = {
-    selector?: string
-    eventName?: string
-}
-
-type CustomReadyHandle = {
-    promise: Promise<void>
-    cancel: () => void
-}
-
-function createCustomReadyWait(
-    opts: CustomReadyOptions
-): CustomReadyHandle | null {
-    const selector = (opts.selector || "").trim()
-    if (!selector || typeof document === "undefined") return null
-
-    const eventName = (opts.eventName || "load").trim() || "load"
-    let resolve!: () => void
-    let finished = false
-    let pending = 0
-    let seenMatch = false
-    const teardownMap = new Map<Element, () => void>()
-
-    const promise = new Promise<void>((res) => (resolve = res))
-
-    let observer: MutationObserver | null = null
-
-    const cleanup = () => {
-        if (finished) return
-        finished = true
-        observer?.disconnect()
-        teardownMap.forEach((off) => off())
-        teardownMap.clear()
-        resolve()
-    }
-
-    const maybeFinish = () => {
-        if (pending === 0 && seenMatch) cleanup()
-    }
-
-    const settleElement = (el: Element) => {
-        const off = teardownMap.get(el)
-        if (!off) return
-        off()
-        teardownMap.delete(el)
-        pending -= 1
-        maybeFinish()
-    }
-
-    const isAlreadyLoaded = (el: Element) => {
-        if (eventName !== "load") return false
-        const anyEl = el as any
-        if (typeof anyEl.complete === "boolean" && anyEl.complete) return true
-        if (
-            typeof anyEl.readyState === "string" &&
-            anyEl.readyState === "complete"
-        )
-            return true
-        if (anyEl.dataset) {
-            if (
-                anyEl.dataset.loaded === "true" ||
-                anyEl.dataset.ready === "true"
-            )
-                return true
-        }
-        if (typeof anyEl.getAttribute === "function") {
-            const dl = anyEl.getAttribute("data-loaded")
-            const dr = anyEl.getAttribute("data-ready")
-            if (dl === "true" || dr === "true") return true
-        }
-        return false
-    }
-
-    const watchElement = (el: Element) => {
-        if (teardownMap.has(el)) return
-        seenMatch = true
-        if (isAlreadyLoaded(el)) {
-            maybeFinish()
-            return
-        }
-        pending += 1
-        const handler = () => settleElement(el)
-        el.addEventListener(eventName, handler, { once: true })
-        teardownMap.set(el, () => el.removeEventListener(eventName, handler))
-    }
-
-    const seed = Array.from(document.querySelectorAll(selector))
-    seed.forEach((el) => watchElement(el))
-    maybeFinish()
-
-    observer = new MutationObserver((muts) => {
-        muts.forEach((m) => {
-            m.addedNodes.forEach((node) => {
-                if (node.nodeType !== 1) return
-                const el = node as Element
-                if (el.matches(selector)) watchElement(el)
-                el
-                    .querySelectorAll?.(selector)
-                    .forEach((match) => watchElement(match as Element))
-            })
-        })
-    })
-    observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-    })
-
-    if (pending === 0 && seenMatch) {
-        cleanup()
-    }
-
-    return {
-        promise,
-        cancel: () => {
-            if (finished) return
-            finished = true
-            observer?.disconnect()
-            teardownMap.forEach((off) => off())
-            teardownMap.clear()
-            resolve()
-        },
-    }
-}
-
 Loading.displayName = "Loading..."
 
 Loading.defaultProps = {
@@ -1636,9 +1872,6 @@ Loading.defaultProps = {
     oncePerSession: false,
     runInPreview: true,
     hideWhenComplete: false,
-    customReadySelector: "",
-    customReadyEvent: "load",
-
     loadBar: DEFAULT_LOAD_BAR,
 }
 
@@ -1677,17 +1910,6 @@ addPropertyControls(Loading, {
         title: "Hide When Complete",
         defaultValue: false,
     },
-    customReadySelector: {
-        type: ControlType.String,
-        title: "Wait Selector",
-        placeholder: "spline-viewer",
-    },
-    customReadyEvent: {
-        type: ControlType.String,
-        title: "Wait Event",
-        placeholder: "load",
-        hidden: (p) => !p.customReadySelector,
-    },
   bar: {
     type: ControlType.Object,
     title: "Load Bar",
@@ -1709,6 +1931,40 @@ addPropertyControls(Loading, {
         defaultValue: DEFAULT_LOAD_BAR.fillStyle,
         hidden: (bar: any = {}) =>
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
+      },
+      textFillStyle: {
+        type: ControlType.Enum,
+        title: "Fill",
+        options: ["static", "dynamic", "oneByOne"],
+        optionTitles: ["Static", "Dynamic", "One by One"],
+        displaySegmentedControl: true,
+        defaultValue: DEFAULT_LOAD_BAR.textFillStyle,
+        hidden: (bar: any = {}) =>
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text",
+      },
+      textFillColor: {
+        type: ControlType.Color,
+        title: "Fill Color",
+        defaultValue: DEFAULT_LOAD_BAR.textFillColor,
+        hidden: (bar: any = {}) =>
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text" ||
+          (bar.textFillStyle ?? DEFAULT_LOAD_BAR.textFillStyle) === "static",
+      },
+      textPerpetual: {
+        type: ControlType.Boolean,
+        title: "Perpetual (Text)",
+        defaultValue: DEFAULT_LOAD_BAR.textPerpetual,
+        hidden: (bar: any = {}) =>
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text" ||
+          (bar.textFillStyle ?? DEFAULT_LOAD_BAR.textFillStyle) === "static",
+      },
+      textReverse: {
+        type: ControlType.Boolean,
+        title: "Reverse Start",
+        defaultValue: DEFAULT_LOAD_BAR.textReverse,
+        hidden: (bar: any = {}) =>
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text" ||
+          (bar.textFillStyle ?? DEFAULT_LOAD_BAR.textFillStyle) === "static",
       },
       lineWidth: {
         type: ControlType.Number,
@@ -1746,6 +2002,13 @@ addPropertyControls(Loading, {
           return anim !== "circle" || !perpetual;
         },
       },
+      startAtLabel: {
+        type: ControlType.Boolean,
+        title: "Start at Label",
+        defaultValue: DEFAULT_LOAD_BAR.startAtLabel,
+        hidden: (bar: any = {}) =>
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "circle",
+      },
             barRadius: {
                 type: ControlType.Number,
                 title: "Radius",
@@ -1763,6 +2026,17 @@ addPropertyControls(Loading, {
                 hidden: (bar: any = {}) =>
                     (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
             },
+            thickness: {
+                type: ControlType.Number,
+                title: "Thickness",
+                min: 1,
+                max: 50,
+                step: 1,
+                defaultValue: DEFAULT_LOAD_BAR.thickness,
+                displayStepper: true,
+                hidden: (bar: any = {}) =>
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
+            },
             showTrack: {
                 type: ControlType.Boolean,
                 title: "Track",
@@ -1770,10 +2044,14 @@ addPropertyControls(Loading, {
                 hidden: (bar: any = {}) =>
                     (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
             },
-            startAtLabel: {
-                type: ControlType.Boolean,
-                title: "Start at Label",
-                defaultValue: DEFAULT_LOAD_BAR.startAtLabel,
+            circleGap: {
+                type: ControlType.Number,
+                title: "Gap",
+                min: 0,
+                max: 90,
+                step: 1,
+                defaultValue: DEFAULT_LOAD_BAR.circleGap,
+                displayStepper: true,
                 hidden: (bar: any = {}) =>
                     (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "circle",
             },
@@ -1845,6 +2123,22 @@ addPropertyControls(Loading, {
                 hidden: (label: any = {}) =>
                     !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
             },
+            textDisplayMode: {
+                type: ControlType.Enum,
+                title: "Display",
+                options: ["textOnly", "textAndNumber", "numberOnly"],
+                optionTitles: ["Text Only", "Text & Numbers", "Numbers Only"],
+                displaySegmentedControl: true,
+                defaultValue: DEFAULT_LOAD_BAR.textDisplayMode,
+                hidden: (label: any = {}, props: any = {}) => {
+                    if (!(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel)) return true
+                    const anim =
+                        props?.loadBar?.animationStyle ??
+                        props?.bar?.animationStyle ??
+                        DEFAULT_LOAD_BAR.animationStyle
+                    return anim !== "text"
+                },
+            },
             labelFont: {
                 type: ControlType.Font,
                 title: "Font",
@@ -1861,28 +2155,32 @@ addPropertyControls(Loading, {
                 hidden: (label: any = {}) =>
                     !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
             },
-            labelPosition: {
-                type: ControlType.Enum,
-                title: "Horizontal Align",
-                options: ["left", "center", "right"],
-                optionTitles: ["Left", "Center", "Right"],
-                displaySegmentedControl: true,
-                defaultValue: DEFAULT_LOAD_BAR.labelPosition,
-                hidden: (label: any = {}) =>
-                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
-            },
-            labelOutsideDirection: {
+        labelPosition: {
+            type: ControlType.Enum,
+            title: "Horizontal Align",
+            options: ["left", "center", "right"],
+            optionTitles: ["Left", "Center", "Right"],
+            displaySegmentedControl: true,
+            defaultValue: DEFAULT_LOAD_BAR.labelPosition,
+            hidden: (label: any = {}) =>
+                !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
+        },
+        labelOutsideDirection: {
                 type: ControlType.Enum,
                 title: "Vertical Align",
                 options: ["top", "center", "bottom"],
                 optionTitles: ["Top", "Center", "Bottom"],
                 displaySegmentedControl: true,
                 defaultValue: DEFAULT_LOAD_BAR.labelOutsideDirection,
-                hidden: (label: any = {}) =>
-                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel) ||
-                    !["outside", "inline"].includes(
-                        (label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement) as string
-                    ),
+                hidden: (label: any = {}, props: any = {}) => {
+                    if (!(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel)) return true
+                    const placement = label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement
+                    const anim = props?.loadBar?.animationStyle ?? props?.bar?.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
+                    // Show for outside/inline (all animation styles), and for inside when animation is bar
+                    if (["outside", "inline"].includes(placement as string)) return false
+                    if (placement === "inside" && anim === "bar") return false
+                    return true
+                },
             },
             labelPlacement: {
                 type: ControlType.Enum,

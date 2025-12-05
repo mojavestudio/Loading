@@ -10,6 +10,15 @@
 - Label placement controls (inside/outside, left/center/right) and border customization
 - Session-aware option so the gate only runs once per visitor
 
+## Expanded Plugin Functionality
+
+- The designer-facing plugin exposes the exact same gating, animation, and label controls as the `Loading.tsx` component so every builder switch updates the published behavior.
+- Gate logic (minimum hold, timeout, session lock, once-per-session) and circle quirks (perpetual animation, start-at-label) share the same helpers between component and plugin for perfect parity.
+- Licensing/auth uses the Google Apps Script endpoint, stores sessions in both localStorage and Framer scoped storage, and surfaces Clear Video & Purchase actions in the footer.
+- Settings menus include the three accordions—Gate Behavior, Progress Animation, Label—each with a Phosphor icon and transparent toggle so the layout feels like one continuous column.
+- When the plugin inserts the code component it targets the shared URL `https://framer.com/m/Loading-v5jr.js@lV9mOMhjRoDBjZhDhPXk`, which is the hosted version of the same `Loading.tsx` file referenced further above (see Framer’s component-sharing docs for how that URL is generated).
+- The plugin now enforces recommended defaults when inserting the shared component: **600 × 600 px** for circle, **500 × 200 px** for text, and **600 × 300 px** for the bar. Those values keep the canvas aligned with the safe area while still allowing the hosted component to respond to other sizes at runtime.
+
 ## Requirements
 
 - React 18+
@@ -44,3 +53,10 @@ The Loading Gate Framer plugin now mirrors the [recommended plugin architecture]
 - `App.css` styles the plugin UI, while `globals.css` owns baseline tokens/resets in line with the Framer template.
 
 To try it inside Framer, drop these files into the `/src` directory of a Framer plugin project (or point your dev server at this folder) and run `npm run dev`. The start screen + builder flow will appear as a floating panel just like any plugin generated from the official template.
+
+## Settings Menu & Styling Overview
+
+- Each settings group lives inside a `.settingsGroup` accordion with minimal chrome: no cards, thin hover feedback, and consistent 16px padding so content feels unified.
+- Gate controls (Minimum / Timeout / Finish Delay) render via `inlineLabel` rows so their label and number field stay on one line, with the finish-delay suffix displayed inline as well.
+- Circle controls present the `Perpetual Mode` / `Start at label` checkboxes on the same row, and the `Perpetual Gap` slider uses the theme’s `--range-track` color for visibility.
+- The hero preview above the menus sits in a fixed-size shell, with the gear icon overlapping its top-right using absolute/fixed positioning, and slider tracks/boxes leverage the same accent tokens as the code component so the visual experience matches.

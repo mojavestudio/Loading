@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host localhost --port 5173",
+    "dev": "vite --port 5173",
     "build": "vite build",
-    "preview": "vite preview --host localhost --port 5173",
+    "preview": "vite preview",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "pack": "npm run build"
   },

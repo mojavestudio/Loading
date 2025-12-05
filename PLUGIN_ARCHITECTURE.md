@@ -75,18 +75,376 @@ If you inherit a flat prototype (only `App.tsx`, `App.css`, `main.tsx`, `globals
 
 ## Plugin Window, Padding & Component Sizing
 
-- `framer.showUI` pins the window to 320 px × 760 px and disables resizing (`Plugin/src/App.tsx:12-19`). Treat 320 px as immutable when designing layouts.
-- **Base Padding**: `main` (via `.pluginRoot`) applies **15px padding on all sides** for breathing room (`Plugin/src/App.css:422-433`). Any future panel should respect this inset to align with the Mojave design vocabulary.
-- **Menu Boxes**: The settings menu panel (`.settingsMenu-panel`) is positioned absolutely with a **width of 240px**, positioned at the top-right of the header menu button (`Plugin/src/App.css:111-119`). Menu panels should use consistent border-radius (16px), padding (14px), and shadow styling to match the plugin's visual system.
-- **Builder Background & Accordions**: The builder stage sits directly on the same solid background as the login gate (`var(--bg-window)`), so `.settingsPanel` drops all borders/shadows and `.loadingSettings` inherits the page backdrop (`Plugin/src/App.css:394-420`). Each configuration section is a slim accordion (`.settingsGroup`) with transparent backgrounds, a single bottom border, and a 18 px vertical hit target for the toggle row plus a 16 px gutter for the revealed inputs (`Plugin/src/App.tsx:1311-1326`, `Plugin/src/App.css:566-608`). Only the three primary sections—Gate Behavior, Progress Animation, and Label—are rendered, each prefixed with a Phosphor icon (`Gate`, `SpinnerGap`, `TextT`) to reinforce hierarchy. Never wrap the dropdowns in extra cards; keep them flush so the header chrome and the body feel seamless, and surface account actions (Signed in + Sign out) beneath the accordions instead of nesting them inside another panel.
-- `MojaveGrid.tsx` declares `@framerIntrinsicWidth 600` and `@framerIntrinsicHeight 600`, plus `width = height = 600` defaults inside the component (`MojaveGrid.tsx:84-112`). New plugins should define explicit intrinsic sizes so inserted nodes appear predictable.
-- Component insertion uses those same 600 px dimensions when calling `framer.addComponentInstance` (`Plugin/src/App.tsx:1423-1462`). Keep the code component and insertion metadata in sync.
+- `framer.showUI` pins the window to 365 px × 830 px and disables resizing (`Plugin/src/main.tsx:41-47`). The window width is fixed at 365px to accommodate the plugin UI.
+### Base Padding
+
+The main container (`.pluginRoot`) applies 15px padding on all sides:
+
+```css
+/* Plugin/src/App.css */
+.pluginRoot {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: visible;
+    padding: 15px;
+}
+```
+### Menu Box Positioning
+
+The settings menu panel is positioned fixed with a width of 250px, calculated to appear directly to the left of the gear icon trigger:
+
+```ts
+// Plugin/src/App.tsx
+const measurePanelPosition = useCallback(() => {
+    if (!triggerRef.current || typeof window === "undefined") return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const panelWidth = 250
+    // Position directly to the left of the trigger, aligned with top
+    const safeLeft = Math.max(12, rect.left - panelWidth - 8 + 30) // 8px gap from trigger, moved 30px right
+    const top = rect.top // Aligned with trigger's top
+    setPanelPos({ top, left: safeLeft })
+}, [])
+```
+
+Menu panels use consistent styling:
+
+```css
+/* Plugin/src/App.css */
+.settingsMenu-panel {
+    position: fixed;
+    width: 250px;
+    max-width: calc(100vw - 30px);
+    border-radius: 12px;
+    border: 1px solid var(--border-soft);
+    padding: 12px;
+    box-shadow: var(--card-shadow);
+}
+```
+- **Builder Background & Accordions**: The builder stage sits directly on the same solid background as the login gate (`var(--bg-window)`), which must be `#111111` in dark mode to match the top bar. The `.settingsPanel` drops all borders/shadows and `.loadingSettings` inherits the page backdrop (`Plugin/src/App.css:394-420`). Each configuration section is a slim accordion (`.settingsGroup`) with transparent backgrounds, a single bottom border, and a 18 px vertical hit target for the toggle row plus a 16 px gutter for the revealed inputs (`Plugin/src/App.tsx:1311-1326`, `Plugin/src/App.css:566-608`). Only the three primary sections—Gate Behavior, Progress Animation, and Label—are rendered, each prefixed with a Phosphor icon (`Gate`, `SpinnerGap`, `TextT`) to reinforce hierarchy. Never wrap the dropdowns in extra cards; keep them flush so the header chrome and the body feel seamless, and surface account actions (Signed in + Sign out) beneath the accordions instead of nesting them inside another panel.
+### Component Intrinsic Size Annotations
+
+The component declares static intrinsic size annotations (compile-time constants):
+
+```ts
+// Loading.tsx
+/** @framerIntrinsicWidth  300 */
+/** @framerIntrinsicHeight 300 */
+/** @framerSupportedLayoutWidth any-prefer-fixed */
+/** @framerSupportedLayoutHeight any-prefer-fixed */
+/** @framerDisableUnlink */
+```
+
+**Note**: While the annotations are static, the component uses runtime logic to determine the correct intrinsic size based on `animationStyle`.
+
+### Dynamic Insertion Sizing
+
+The plugin calculates insertion size based on animation style:
+
+```ts
+// Plugin/src/App.tsx
+const getInsertionSize = (style: LoadBarControls["animationStyle"]) => {
+    // Dynamic sizing based on animation style
+    switch (style) {
+        case "circle":
+            return { width: 300, height: 300 }
+        case "bar":
+            return { width: 600, height: 50 }
+        case "text":
+            return { width: 300, height: 50 }
+        default:
+            return { width: 300, height: 300 }
+    }
+}
+```
+
+### Component Insertion with Attributes
+
+When inserting a component, the plugin passes dynamic dimensions in the `attributes` object:
+
+```ts
+// Plugin/src/App.tsx
+const insertionSize = getInsertionSize(loadingControls.loadBar.animationStyle)
+
+const insertAttrs = {
+    width: insertionSize.width,
+    height: insertionSize.height,
+    // Prevent auto-sizing jitter on insert
+    autoSize: false,
+    constraints: { autoSize: "none" as const },
+    // Property control values must live under controls
+    controls: loadingControls,
+}
+
+const inserted = await framer.addComponentInstance({
+    url: COMPONENT_URL,
+    attributes: insertAttrs,
+})
+```
+
+### Post-Insertion Size Enforcement
+
+After insertion, `setAttributes` is called multiple times with retries to ensure dimensions are set correctly:
+
+```ts
+// Plugin/src/App.tsx
+const canSet = await framer.isAllowedTo('setAttributes')
+if (canSet) {
+    // Set size and controls immediately
+    await (framer as any).setAttributes(insertedId, {
+        width: insertionSize.width as any,
+        height: insertionSize.height as any,
+        constraints: { autoSize: 'none' as const },
+        controls: loadingControls,
+    } as any)
+    
+    // Retry setting size/controls multiple times (component may load asynchronously)
+    const retrySetAttributes = async () => {
+        try {
+            await (framer as any).setAttributes(insertedId, {
+                width: insertionSize.width as any,
+                height: insertionSize.height as any,
+                constraints: { autoSize: 'none' as const },
+                controls: loadingControls,
+            } as any)
+        } catch (retryErr) {
+            if (__isLocal) {
+                console.warn("[Loading Plugin] Retry setAttributes failed", retryErr)
+            }
+        }
+    }
+    
+    // Multiple retries to ensure dimensions are set correctly
+    setTimeout(retrySetAttributes, 50)
+    setTimeout(retrySetAttributes, 100)
+    setTimeout(retrySetAttributes, 250)
+    setTimeout(retrySetAttributes, 500)
+    setTimeout(retrySetAttributes, 1000)
+}
+```
+
+### Dynamic Intrinsic Size Calculation
+
+The component calculates intrinsic size at runtime based on `animationStyle`:
+
+```ts
+// Loading.tsx
+const intrinsicSize = (() => {
+    switch (animationStyle) {
+        case "circle":
+            return { width: 300, height: 300 }
+        case "bar":
+            return { width: 600, height: 50 }
+        case "text":
+            return { width: 300, height: 50 }
+        default:
+            return { width: 300, height: 300 }
+    }
+})()
+```
+
+### Container Size Measurement
+
+The component measures its container size via ResizeObserver:
+
+```ts
+// Loading.tsx
+React.useLayoutEffect(() => {
+    const node = rootRef.current
+    if (!node) return
+    const measure = () => {
+        setContainerSize({
+            width: node.offsetWidth,
+            height: node.offsetHeight,
+        })
+    }
+    measure()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(() => measure())
+    observer.observe(node)
+    return () => {
+        observer.disconnect()
+    }
+}, [])
+```
+
+### Using Measured Dimensions
+
+The component uses measured container size when available, falling back to dynamic intrinsic size:
+
+```ts
+// Loading.tsx
+const measuredWidth =
+    (typeof p.style?.width === "number" ? p.style.width : null) ??
+    (containerSize.width > 0 ? containerSize.width : intrinsicSize.width)
+const measuredHeight =
+    (typeof p.style?.height === "number" ? p.style.height : null) ??
+    (containerSize.height > 0 ? containerSize.height : intrinsicSize.height)
+
+// Use measured container size when available, otherwise use intrinsic size
+const effectiveWidth = containerSize.width > 0 ? containerSize.width : intrinsicSize.width
+const effectiveHeight = containerSize.height > 0 ? containerSize.height : intrinsicSize.height
+
+const rootStyle: React.CSSProperties = {
+    ...p.style,
+    width: "100%",
+    height: "100%",
+    // Set minWidth/minHeight to ensure component doesn't shrink below measured/intrinsic size
+    minWidth: effectiveWidth,
+    minHeight: effectiveHeight,
+    position: "relative",
+    boxSizing: "border-box",
+    // ... padding, etc.
+}
+```
+- The plugin always inserts the hosted component located at `https://framer.com/m/Loading-v5jr.js@fzOnzVshQ62Gu32UHI6g`, which is the same code body as `Loading.tsx`. Update `VITE_LOADING_COMPONENT_URL` only if that shared component is republished under a different ID.
+
+## Settings Menu + Styling Details
+
+- The three primary configuration sections (Gate Behavior, Progress Animation, Label) reuse the same `settingsGroup` accordion markup so they appear as a single column with minimal chrome. Each header uses a Phosphor icon, the same background color, and a 16px touch target to line up with the Mojave aesthetic (`Plugin/src/App.tsx:1311-1360`, `Plugin/src/App.css:566-608`).
+- Gate-specific selectors use the `inlineLabel` helper so their label+input rows stay together (Minimum / Timeout / Finish Delay), and the Finish Delay suffix is still rendered inline via `.inputSuffix`. Circle controls stretch horizontally by grouping the Perpetual Mode and Start at label toggles inside a `settingsRow settingsRow--two`.
+- Keep the hero preview and gear exactly as implemented: fixed size, padded 15px from the top-right, and using the same accent slider track (`--range-track`) plus text colors so the plugin preview matches the component’s look and feel (`Plugin/src/App.tsx:1168-1188`, `Plugin/src/App.css:14-55`).
+
+### Custom NumberInput Component with +/- Buttons
+
+The plugin uses a custom `NumberInput` component to replace native browser number inputs, providing consistent styling and integrated increment/decrement buttons.
+
+#### Component Structure
+
+The `NumberInput` component (`Plugin/src/App.tsx:164-268`) renders a unified input box containing:
+1. **Input field**: A number input with native spinners hidden via CSS
+2. **Vertical separators**: Thin divider lines (`|`) using `var(--border-soft)`
+3. **Decrement button**: Minus (`−`) button on the right side
+4. **Increment button**: Plus (`+`) button on the right side
+
+```ts
+// Plugin/src/App.tsx
+const NumberInput = ({
+    value,
+    onChange,
+    min,
+    max,
+    step = 1,
+    style,
+}: {
+    value: number
+    onChange: (value: number) => void
+    min: number
+    max: number
+    step?: number
+    style?: CSSProperties
+}) => {
+    // Implementation with unified box containing input, separators, and buttons
+}
+```
+
+#### Layout & Styling
+
+- **Container**: Single unified box with `border: 1px solid var(--border-soft)`, `borderRadius: 6px`, and `background: var(--input-background)` to match other form inputs
+- **Input field**: Takes up flex space with `padding: 8px 10px` to match standard input heights (same as `select` elements)
+- **Buttons**: Fixed width of `20px`, height `100%` to match container, with `fontSize: 12px` and `fontWeight: 600`
+- **Separators**: `1px` width, `18px` height, using `var(--border-soft)` color
+- **Disabled state**: Buttons show `opacity: 0.5` and `cursor: not-allowed` when at min/max values
+
+#### CSS Integration
+
+Native number input spinners are hidden via CSS:
+
+```css
+/* Plugin/src/App.css */
+.custom-number-input::-webkit-outer-spin-button,
+.custom-number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.custom-number-input {
+    -moz-appearance: textfield;
+}
+```
+
+The component uses theme variables for consistent theming:
+- `var(--input-background)` for container background
+- `var(--border-soft)` for borders and separators
+- `var(--text-primary)` for text and button colors
+- `var(--text-secondary)` for suffix text (when used)
+
+#### Usage Examples
+
+The component is used throughout the plugin for numeric inputs:
+
+```ts
+// Line width input
+<NumberInput
+    value={builder.controls.loadBar.lineWidth}
+    onChange={(value) => updateLoadBar({ lineWidth: value })}
+    min={1}
+    max={20}
+    step={0.5}
+/>
+
+// Finish delay with external suffix
+<div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
+    <NumberInput
+        value={builder.controls.loadBar.finishDelay}
+        onChange={(value) => updateLoadBar({ finishDelay: value })}
+        min={0}
+        max={2}
+        step={0.05}
+        style={{ flex: 1, minWidth: 0 }}
+    />
+    <span style={{ fontSize: "13px", color: "var(--text-secondary)", whiteSpace: "nowrap", flexShrink: 0 }}>
+        s
+    </span>
+</div>
+```
+
+#### Spacing Consistency
+
+All form elements use consistent `12px` gaps:
+- `.settingsGrid`: `gap: 12px` (spacing between rows)
+- `.settingsRow`: `gap: 12px` (spacing between elements in a row)
+- `.alignmentRow`: `gap: 12px` (alignment controls)
+- `.fontPicker`: `gap: 12px` (font selection controls)
+
+All margins are reset to `0` to ensure spacing is controlled exclusively by gap properties:
+- `.settingsGrid > *`: `margin: 0`
+- `.settingsRow`: `margin: 0`
+- `.flexColumn`: `margin: 0`
 
 ## Serving the Framer Code Component & Preventing Unlink
 
-- The Canvas component carries `@framerDisableUnlink` to keep it wired to the hosted source (`MojaveGrid.tsx:84-88`).
-- The plugin never bundles the component itself. Instead it requests Framer to insert the hosted module referenced by `MOJAVE_GRID_MODULE_URL` (`Plugin/src/App.tsx:179,1423`). Always point this constant at the latest published URL from the Framer share dialog and update it during releases.
-- Provide a fallback frame via `framer.createFrameNode` the way Mojave Grid does so permission-restricted projects still get visual feedback (`Plugin/src/App.tsx:1466-1504`).
+### Disable Unlink Annotation
+
+The Canvas component carries `@framerDisableUnlink` to keep it wired to the hosted source:
+
+```ts
+// Loading.tsx
+/** @framerDisableUnlink */
+export default function Loading(p: Props) {
+    // Component implementation
+}
+```
+
+### Component URL Configuration
+
+The plugin never bundles the component itself. Instead it requests Framer to insert the hosted module:
+
+```ts
+// Plugin/src/App.tsx
+const DEFAULT_COMPONENT_URL = () =>
+    "https://framer.com/m/Loading-v5jr.js@fzOnzVshQ62Gu32UHI6g"
+
+const COMPONENT_URL =
+    getEnv("VITE_LOADING_COMPONENT_URL") || DEFAULT_COMPONENT_URL()
+```
+
+Always point this constant at the latest published URL from the Framer share dialog and update it during releases.
+
+### Fallback Frame Creation
+
+Provide a fallback frame via `framer.createFrameNode` so permission-restricted projects still get visual feedback. See the `tryFallbackInsert` function in `Plugin/src/App.tsx` for the implementation pattern.
 
 ## Verification & Licensing Page (Same Endpoint)
 
@@ -130,6 +488,42 @@ const AUTH_JSONP_ENDPOINT =
 
 - `useFramerTheme` listens for `data-framer-theme` mutations and exposes `"light"` or `"dark"` (`Plugin/src/App.tsx:21-39`). Every surface should pull colors from the theme objects that follow.
 - Both `darkTheme` and `lightTheme` define palette tokens for cards, sliders, inputs, error states, and the authentication grid (`Plugin/src/App.tsx:42-120`). Whenever you add UI, extend these theme maps rather than hard-coding colors.
+- **Background Color**: The plugin background must honor the theme setting. In dark mode, the background color (`--bg-window`) must be set to `#111111` to match the top bar and maintain visual consistency. This is defined in `Plugin/src/App.css` via the `[data-framer-theme="dark"]` selector:
+  ```css
+  [data-framer-theme="dark"] .loadingStart,
+  [data-framer-theme="dark"] .loadingApp,
+  [data-framer-theme="dark"] .pluginRoot {
+      --bg-window: #111111;
+      /* ... other dark theme tokens ... */
+  }
+  ```
+  The `.pluginRoot`, `.loadingStart`, and `.loadingApp` classes use `background: var(--bg-window)` to ensure the background color is consistently applied and honors the theme setting.
+- **Container Background Coverage**: To prevent a black box appearing at the bottom of the plugin window, all container elements must have the background color explicitly set. In `Plugin/src/globals.css`, the `html`, `body`, `#root`, and `main` elements must all use `background: var(--bg-window, #111111) !important` with `height: 100%` to ensure full coverage. The `!important` flag is necessary to override any default Framer plugin window styling:
+  ```css
+  html {
+      background: var(--bg-window, #111111) !important;
+      height: 100%;
+      width: 100%;
+  }
+  
+  body {
+      height: 100%;
+      width: 100%;
+      background: var(--bg-window, #111111) !important;
+  }
+  
+  #root {
+      background: var(--bg-window, #111111) !important;
+      height: 100%;
+      width: 100%;
+  }
+  
+  main {
+      background: var(--bg-window, #111111) !important;
+      min-height: 100%;
+  }
+  ```
+  This ensures that any empty space at the bottom of the window (such as when the window height exceeds the content height) displays the correct background color instead of defaulting to black.
 - Animated landing/auth grids reuse the Mojave palette so even gating flows feel on-brand (`Plugin/src/App.tsx:1323-1507`).
 - Follow the padding guidance in `App.css` and keep controls constrained to a single column to respect the 320 px canvas.
 - Every plugin shipped from this repo must offer parity in light and dark modes—QA both before publishing.

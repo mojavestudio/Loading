@@ -1,23 +1,49 @@
+// Suppress framer-plugin initialization errors in dev mode - must be before any imports
+if (typeof window !== "undefined") {
+    // Override console.error to suppress the specific error
+    const originalConsoleError = console.error
+    console.error = function(...args: any[]) {
+        const message = args.join(" ")
+        if (typeof message === "string" && message.includes("Invalid mode: null")) {
+            // Suppress this specific error
+            return
+        }
+        originalConsoleError.apply(console, args)
+    }
+    
+    const suppressFramerError = (event: ErrorEvent) => {
+        const message = event.message || String(event.error || "")
+        if (typeof message === "string" && message.includes("Invalid mode: null")) {
+            event.preventDefault()
+            event.stopPropagation()
+            event.stopImmediatePropagation()
+            return true
+        }
+        return false
+    }
+    
+    window.addEventListener("error", suppressFramerError, true)
+    window.addEventListener("unhandledrejection", (event) => {
+        const message = String(event.reason || "")
+        if (message.includes("Invalid mode: null")) {
+            event.preventDefault()
+        }
+    }, true)
+}
+
 import React from "react"
 import ReactDOM from "react-dom/client"
 import App from "./App"
 import "./globals.css"
-import { framer, loadFramer } from "./framer-safe"
+import { framer } from "framer-plugin"
 
-// Initialize framer UI after loading
-loadFramer().then((framerInstance) => {
-    if (framerInstance && typeof framerInstance.showUI === "function") {
-        framerInstance.showUI({
-            position: "top right",
-            width: 320,
-            height: 760,
-            minWidth: 320,
-            maxWidth: 320,
-            resizable: false,
-        }).catch(() => {
-            // Ignore if showUI fails - app will still render
-        })
-    }
+// Initialize framer UI
+framer.showUI({
+    width: 365,
+    height: 820,
+    minWidth: 365,
+    maxWidth: 365,
+    resizable: false,
 })
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
