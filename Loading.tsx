@@ -99,6 +99,11 @@ type Props = {
 
 const SESSION_FLAG = "PageReadyGate:ready"
 
+const LABEL_OFFSET_LIMITS = {
+    x: { min: -100, max: 130 },
+    y: { min: -25, max: 25 },
+}
+
 const DEFAULT_LOAD_BAR: LoadBarConfig = {
     animationStyle: "bar",
     fillStyle: "solid",
@@ -354,12 +359,22 @@ export default function Loading(p: Props) {
         loadBarOverrides.labelPosition,
         DEFAULT_LOAD_BAR.labelPosition
     )!
+    const labelOutsideDirection = coalesce(
+        p.labelOutsideDirection,
+        nestedLabelOverrides.labelOutsideDirection,
+        loadBarOverrides.labelOutsideDirection,
+        DEFAULT_LOAD_BAR.labelOutsideDirection
+    )!
     const labelPlacement = coalesce(
         p.labelPlacement,
         nestedLabelOverrides.labelPlacement,
         loadBarOverrides.labelPlacement,
         DEFAULT_LOAD_BAR.labelPlacement
     )!
+    // For bars: 
+    // - center/center = inside (centered)
+    // - left/center or right/center = inside (at edges)
+    // - top/bottom = outside (above/below bar, horizontally aligned per labelPosition)
     const resolvedLabelPlacement =
         labelPlacement === "hidden"
             ? "hidden"
@@ -367,34 +382,44 @@ export default function Loading(p: Props) {
             ? labelPlacement
             : labelPlacement === "inline"
             ? "inside"
-            : labelPlacement
-    const labelOutsideDirection = coalesce(
-        p.labelOutsideDirection,
-        nestedLabelOverrides.labelOutsideDirection,
-        loadBarOverrides.labelOutsideDirection,
-        DEFAULT_LOAD_BAR.labelOutsideDirection
-    )!
-    const labelOffsetX = coalesce(
+            : animationStyle === "bar" && 
+              ((labelPosition === "center" && labelOutsideDirection === "center") ||
+               ((labelPosition === "left" || labelPosition === "right") && labelOutsideDirection === "center"))
+            ? "inside"
+            : "outside"
+    const labelOffsetXRaw = coalesce(
         p.labelOffsetX,
         nestedLabelOverrides.labelOffsetX,
         loadBarOverrides.labelOffsetX,
         DEFAULT_LOAD_BAR.labelOffsetX ?? 0
     ) ?? 0
-    const labelOffsetY = coalesce(
+    const labelOffsetYRaw = coalesce(
         p.labelOffsetY,
         nestedLabelOverrides.labelOffsetY,
         loadBarOverrides.labelOffsetY,
         DEFAULT_LOAD_BAR.labelOffsetY ?? 0
     ) ?? 0
+    const labelOffsetX = clampNumber(
+        labelOffsetXRaw,
+        LABEL_OFFSET_LIMITS.x.min,
+        LABEL_OFFSET_LIMITS.x.max
+    )
+    const labelOffsetY = clampNumber(
+        labelOffsetYRaw,
+        LABEL_OFFSET_LIMITS.y.min,
+        LABEL_OFFSET_LIMITS.y.max
+    )
 
     const loadBarConfig: LoadBarConfig = {
         animationStyle,
         fillStyle,
         lineWidth,
+        thickness,
         perpetual,
         perpetualGap,
         barRadius,
         barColor,
+        circleGap,
         trackColor,
         showTrack,
         trackThickness,
@@ -429,6 +454,10 @@ export default function Loading(p: Props) {
         showLabel &&
         animationStyle === "circle" &&
         resolvedLabelPlacement === "inline"
+    const shouldRenderGlobalOutsideLabel =
+        labelOutside && animationStyle !== "bar"
+
+    const effectiveLabelDisplayMode = textDisplayMode || "textAndNumber"
 
     const formatLabel = React.useCallback(
         (value: number) => {
@@ -437,9 +466,17 @@ export default function Loading(p: Props) {
                 labelTextRaw !== undefined
                     ? labelText
                     : (DEFAULT_LOAD_BAR.labelText || "").trim()
-            return prefix ? `${prefix} ${pct}%` : `${pct}%`
+            const percentString = `${pct}%`
+            switch (effectiveLabelDisplayMode) {
+                case "textOnly":
+                    return prefix
+                case "numberOnly":
+                    return percentString
+                default:
+                    return prefix ? `${prefix} ${percentString}` : percentString
+            }
         },
-        [labelText, labelTextRaw]
+        [labelText, labelTextRaw, effectiveLabelDisplayMode]
     )
 
     React.useEffect(() => {
@@ -766,12 +803,11 @@ export default function Loading(p: Props) {
 
 
     React.useLayoutEffect(() => {
-        if (!labelOutside) {
+        const node = labelElement
+        if (!node) {
             setLabelBounds({ width: 0, height: 0 })
             return
         }
-        const node = labelElement
-        if (!node) return
         const measure = () => {
             setLabelBounds({
                 width: node.offsetWidth,
@@ -783,7 +819,7 @@ export default function Loading(p: Props) {
         const observer = new ResizeObserver(() => measure())
         observer.observe(node)
         return () => observer.disconnect()
-    }, [labelOutside, labelElement])
+    }, [labelElement])
 
     const baseLabelStyle: React.CSSProperties = {
         fontSize: labelFontSize,
@@ -806,28 +842,49 @@ export default function Loading(p: Props) {
         baseLabelStyle.lineHeight =
             appliedFont.lineHeight as React.CSSProperties["lineHeight"]
 
+    const estimatedLabelHeight =
+        labelBounds.height || Math.ceil(labelFontSize * 1.2)
     const labelSpacing = 6
-    const outsideSpacing = 5
+    const outsideSpacing = 4
+    const LABEL_VERTICAL_OFFSET = 30
     const BAR_SIDE_MARGIN = 15
+    const BAR_EXTRA_TOP = 5
+    const BAR_EXTRA_BOTTOM = 10
     const BAR_LABEL_GAP = 5
+    const barContainerHeight = Math.max(
+        thickness,
+        Math.ceil(labelFontSize * 1.2 + 4)
+    )
     const isBarAnimation = animationStyle === "bar"
     const outsidePadding = {
-        top: 0,
+        top: isBarAnimation ? BAR_EXTRA_TOP : 0,
         right: isBarAnimation ? BAR_SIDE_MARGIN : 0,
-        bottom: 0,
+        bottom: isBarAnimation ? BAR_EXTRA_BOTTOM : 0,
         left: isBarAnimation ? BAR_SIDE_MARGIN : 0,
     }
-
+    const topOffsetShift =
+        labelOutside && labelOutsideDirection === "top"
+            ? Math.max(0, labelOffsetY)
+            : 0
+    const bottomOffsetShift =
+        labelOutside && labelOutsideDirection === "bottom"
+            ? Math.max(0, -labelOffsetY)
+            : 0
     if (labelOutside) {
         const labelW = labelBounds.width || 0
-        const labelH = labelBounds.height || 0
-        if (labelOutsideDirection === "top") {
-            outsidePadding.top = Math.max(outsidePadding.top, labelH + outsideSpacing)
-        } else if (labelOutsideDirection === "bottom") {
-            outsidePadding.bottom = Math.max(
-                outsidePadding.bottom,
-                labelH + outsideSpacing
-            )
+        const labelH = estimatedLabelHeight
+        if (!isBarAnimation) {
+            if (labelOutsideDirection === "top") {
+                outsidePadding.top = Math.max(
+                    outsidePadding.top,
+                    labelH + outsideSpacing + topOffsetShift
+                )
+            } else if (labelOutsideDirection === "bottom") {
+                outsidePadding.bottom = Math.max(
+                    outsidePadding.bottom,
+                    labelH + outsideSpacing + bottomOffsetShift
+                )
+            }
         }
 
         const wantsHorizontalReserve =
@@ -851,8 +908,18 @@ export default function Loading(p: Props) {
         switch (animationStyle) {
             case "circle":
                 return { width: 300, height: 300 }
-            case "bar":
-                return { width: 600, height: 50 }
+            case "bar": {
+                const barHeightForIntrinsic = Math.max(
+                    barContainerHeight,
+                    estimatedLabelHeight
+                )
+                const requiredHeight =
+                    barHeightForIntrinsic +
+                    LABEL_VERTICAL_OFFSET * 2 +
+                    BAR_EXTRA_TOP +
+                    BAR_EXTRA_BOTTOM
+                return { width: 600, height: Math.max(50, Math.ceil(requiredHeight)) }
+            }
             case "text":
                 return { width: 300, height: 50 }
             default:
@@ -869,19 +936,19 @@ export default function Loading(p: Props) {
         0,
         measuredWidth - outsidePadding.left - outsidePadding.right
     )
+    const wrapperTop = outsidePadding.top - bottomOffsetShift
+    const wrapperBottom = outsidePadding.bottom
     const contentHeight = Math.max(
         0,
         measuredHeight - outsidePadding.top - outsidePadding.bottom
     )
-    const barContainerHeight = Math.max(
-        thickness,
-        Math.ceil(labelFontSize * 1.2 + 4)
-    )
+    const contentTopActual = wrapperTop
+    const contentBottomActual = wrapperTop + contentHeight
 
     const insideLabelOffset: string | undefined = (() => {
         const transforms: string[] = []
         if (labelOffsetX) transforms.push(`translateX(${labelOffsetX}px)`)
-        if (labelOffsetY) transforms.push(`translateY(${labelOffsetY}px)`)
+        if (labelOffsetY) transforms.push(`translateY(${-labelOffsetY}px)`)
         return transforms.length ? transforms.join(" ") : undefined
     })()
 
@@ -899,22 +966,29 @@ export default function Loading(p: Props) {
             ? insideVerticalInset
             : insideBarPaddingY
     const insideHorizontalInset = 5
+    // Ensure symmetric padding for center alignment
     const insidePaddingLeft =
-        insideBarPaddingX + (labelPosition === "left" ? insideHorizontalInset : 0)
+        labelPosition === "center"
+            ? insideBarPaddingX
+            : insideBarPaddingX + (labelPosition === "left" ? insideHorizontalInset : 0)
     const insidePaddingRight =
-        insideBarPaddingX + (labelPosition === "right" ? insideHorizontalInset : 0)
+        labelPosition === "center"
+            ? insideBarPaddingX
+            : insideBarPaddingX + (labelPosition === "right" ? insideHorizontalInset : 0)
 
-    // Flex-based label overlay for bars (avoids absolute-position drift on canvas)
-    const insideLabelOverlayBar: React.CSSProperties = {
+    const insideLabelAlign = labelOutsideDirection === "top"
+        ? "flex-start"
+        : labelOutsideDirection === "center"
+        ? "center"
+        : "flex-end"
+
+    // Flex-based label overlay baseline for bars; individual layouts adjust width/offset
+    const insideLabelOverlayBase: React.CSSProperties = {
         position: "absolute",
-        inset: 0,
+        top: 0,
+        bottom: 0,
         display: "flex",
-        alignItems:
-            labelOutsideDirection === "top"
-                ? "flex-start"
-                : labelOutsideDirection === "center"
-                ? "center"
-            : "flex-end",
+        alignItems: insideLabelAlign,
         justifyContent: mapLabelAlign(labelPosition),
         pointerEvents: "none",
         paddingLeft: insidePaddingLeft,
@@ -923,43 +997,86 @@ export default function Loading(p: Props) {
         paddingBottom: insidePaddingBottom,
     }
 
-    const outsideLabelTransform: string[] = []
     const outsideLabelStyle: React.CSSProperties = {
         ...baseLabelStyle,
         position: "absolute",
     }
+    let outsideLabelTransform: string[] = []
+    let appliedBarOutside = false
     if (resolvedLabelPlacement === "outside") {
-        if (labelOutsideDirection === "top") {
-            outsideLabelStyle.top = 0
-            outsideLabelTransform.push("translateY(-100%)")
-        } else if (labelOutsideDirection === "center") {
-            outsideLabelStyle.top = "50%"
-            outsideLabelTransform.push("translateY(-50%)")
+        if (animationStyle === "bar") {
+            const axisX = labelPosition === "left" ? -1 : labelPosition === "right" ? 1 : 0
+            const axisY =
+                labelOutsideDirection === "top"
+                    ? -1
+                    : labelOutsideDirection === "bottom"
+                    ? 1
+                    : 0
+            const centerX = outsidePadding.left + contentWidth / 2
+            // Bar is vertically centered in the content area, so use that center
+            // not barContainerHeight / 2 which is incorrect
+            const barCenterY =
+                contentHeight > 0
+                    ? outsidePadding.top + contentHeight / 2
+                    : outsidePadding.top + barContainerHeight / 2
+            const centerY = barCenterY
+            const horizontalReach =
+                axisX === 0
+                    ? 0
+                    : contentWidth / 2 + outsideSpacing + (labelBounds.width || 0) / 2
+            const verticalReach =
+                axisY === 0
+                    ? 0
+                    : thickness / 2 + outsideSpacing + (labelBounds.height || 0) / 2
+            outsideLabelStyle.left = centerX
+            outsideLabelStyle.top = centerY
+            const transforms = ["translate(-50%, -50%)"]
+            if (axisX !== 0) transforms.push(`translateX(${axisX * horizontalReach}px)`)
+            if (axisY !== 0) transforms.push(`translateY(${axisY * verticalReach}px)`)
+            // Extra 5px to the right for top/bottom rows only
+            if (axisY !== 0) transforms.push("translateX(5px)")
+            // For top/bottom labels, labelOffsetX shrinks the bar instead of moving the label
+            // Only apply translateX(labelOffsetX) for center row labels
+            if (labelOffsetX && axisY === 0) transforms.push(`translateX(${labelOffsetX}px)`)
+            if (labelOffsetY) transforms.push(`translateY(${-labelOffsetY}px)`)
+            outsideLabelStyle.transform = transforms.join(" ")
+            appliedBarOutside = true
         } else {
-            outsideLabelStyle.top = `calc(100% + ${outsideSpacing}px)`
-        }
-        switch (labelPosition) {
-            case "left":
-                outsideLabelStyle.left = 0
-                outsideLabelTransform.push(`translateX(calc(-100% - ${outsideSpacing}px))`)
-                break
-            case "center":
-                outsideLabelStyle.left = "50%"
-                outsideLabelTransform.push("translateX(-50%)")
-                break
-            default:
-                outsideLabelStyle.right = 0
-                outsideLabelTransform.push(`translateX(calc(100% + ${outsideSpacing}px))`)
-                break
-        }
-        if (labelOffsetX !== 0) {
-            outsideLabelTransform.push(`translateX(${labelOffsetX}px)`)
-        }
-        if (labelOffsetY !== 0) {
-            outsideLabelTransform.push(`translateY(${labelOffsetY}px)`)
+            const outsideLabelWidth = labelBounds.width || labelFontSize || 0
+            const outsideLabelHeight = labelBounds.height || labelFontSize || 0
+            const anchorTop = contentTopActual - outsideLabelHeight - outsideSpacing
+            const anchorBottom = contentBottomActual + outsideSpacing
+            const contentLeft = outsidePadding.left
+            const contentRight = outsidePadding.left + contentWidth
+            if (labelOutsideDirection === "top") {
+                outsideLabelStyle.top = `${anchorTop - labelOffsetY}px`
+            } else if (labelOutsideDirection === "center") {
+                outsideLabelStyle.top = "50%"
+                outsideLabelTransform.push("translateY(-50%)")
+                if (labelOffsetY !== 0) {
+                    outsideLabelTransform.push(`translateY(${-labelOffsetY}px)`)
+                }
+            } else {
+                outsideLabelStyle.top = `${anchorBottom - labelOffsetY}px`
+            }
+            switch (labelPosition) {
+                case "left":
+                    outsideLabelStyle.left = `${contentLeft - outsideLabelWidth - outsideSpacing}px`
+                    break
+                case "center":
+                    outsideLabelStyle.left = "50%"
+                    outsideLabelTransform.push("translateX(-50%)")
+                    break
+                default:
+                    outsideLabelStyle.left = `${contentRight + outsideSpacing}px`
+                    break
+            }
+            if (labelOffsetX !== 0) {
+                outsideLabelTransform.push(`translateX(${labelOffsetX}px)`)
+            }
         }
     }
-    if (outsideLabelTransform.length > 0) {
+    if (!appliedBarOutside && outsideLabelTransform.length > 0) {
         outsideLabelStyle.transform = outsideLabelTransform.join(" ")
     }
 
@@ -1097,17 +1214,7 @@ export default function Loading(p: Props) {
         const trackBackground = showTrack ? trackColor : "transparent"
         if (animationStyle === "text") {
             // Text style with optional glyph fill (no bar)
-            const textMode = textDisplayMode || "textAndNumber"
-            const pct = Math.round(Math.max(0, Math.min(1, progressValue)) * 100)
-            const prefix = (labelText || DEFAULT_LOAD_BAR.labelText || "").trim()
-            const textContent =
-                textMode === "textOnly"
-                    ? prefix || ""
-                    : textMode === "numberOnly"
-                    ? `${pct}%`
-                    : prefix
-                    ? `${prefix} ${pct}%`
-                    : `${pct}%`
+            const textContent = formatLabel(progressValue)
 
             const isStaticFill = textFillStyle === "static"
             const isOneByOneFill = textFillStyle === "oneByOne"
@@ -1302,7 +1409,33 @@ export default function Loading(p: Props) {
             // Center the SVG in the content area (flexbox will handle this, but we calculate for labels)
             const circleOffsetX = (contentWidth - svgSize) / 2
             const circleOffsetY = (contentHeight - svgSize) / 2
-            const circleLabelInset = Math.min(16, Math.max(6, circleSize * 0.08))
+            const circlePaddingBase = Math.min(16, Math.max(6, circleSize * 0.08))
+            const insideInset = Math.max(circlePaddingBase, maxStroke * 0.5 + 6)
+            const centerX = circleOffsetX + circleSize / 2
+            const centerY = circleOffsetY + circleSize / 2
+            const availableRadius = Math.max(0, circleRadius - insideInset)
+            const labelAxisX = labelPosition === "left" ? -1 : labelPosition === "right" ? 1 : 0
+            const labelAxisY =
+                labelOutsideDirection === "top"
+                    ? -1
+                    : labelOutsideDirection === "bottom"
+                    ? 1
+                    : 0
+            const vectorLength = Math.hypot(labelAxisX, labelAxisY)
+            const insideShiftMagnitude = vectorLength > 0 ? availableRadius : 0
+            const insideShiftX =
+                vectorLength > 0 ? (labelAxisX / vectorLength) * insideShiftMagnitude : 0
+            const insideShiftY =
+                vectorLength > 0 ? (labelAxisY / vectorLength) * insideShiftMagnitude : 0
+            const insideLabelX = centerX + insideShiftX
+            const insideLabelY = centerY + insideShiftY
+            const insideLabelTransform = [
+                "translate(-50%, -50%)",
+                labelOffsetX ? `translateX(${labelOffsetX}px)` : "",
+                labelOffsetY ? `translateY(${-labelOffsetY}px)` : "",
+            ]
+                .filter(Boolean)
+                .join(" ") || undefined
             
             return (
                 <div style={{
@@ -1324,7 +1457,7 @@ export default function Loading(p: Props) {
                         viewBox={`0 0 ${svgSize} ${svgSize}`} // Ensure proper coordinate system
                     >
                         {/* Background circle (track) */}
-                        {showTrack && (
+                        {showTrack && fillStyle !== "lines" && (
                             <circle
                                 cx={svgSize / 2}
                                 cy={svgSize / 2}
@@ -1357,11 +1490,9 @@ export default function Loading(p: Props) {
                                 strokeLinecap={progressCap}
                             />
                         ) : (
-            // Lines mode for circle
-            <>
-                {Array.from({ length: 20 }).map((_, i) => {
+                            <>
+                                {Array.from({ length: 20 }).map((_, i) => {
                                     const shouldShow = i < Math.floor(progressValue * 20)
-                                    if (!shouldShow) return null
                                     const angle = (i / 20) * 360 - 90
                                     const angleDelta = Math.abs(
                                         ((((angle - labelAngle) % 360) + 540) % 360) - 180
@@ -1373,6 +1504,13 @@ export default function Loading(p: Props) {
                                     const y1 = svgSize / 2 + circleRadius * Math.sin(rad)
                                     const x2 = svgSize / 2 + innerRadius * Math.cos(rad)
                                     const y2 = svgSize / 2 + innerRadius * Math.sin(rad)
+                                    const strokeColor = shouldShow
+                                        ? barColor
+                                        : showTrack
+                                        ? trackColor
+                                        : "transparent"
+                                    const opacity = shouldShow ? 1 : showTrack ? 0.35 : 0
+                                    if (!showTrack && !shouldShow) return null
                                     return (
                                         <line
                                             key={i}
@@ -1380,9 +1518,10 @@ export default function Loading(p: Props) {
                                             y1={y1}
                                             x2={x2}
                                             y2={y2}
-                                            stroke={barColor}
+                                            stroke={strokeColor}
                                             strokeWidth={thickness}
                                             strokeLinecap="round"
+                                            opacity={opacity}
                                         />
                                     )
                                 })}
@@ -1393,23 +1532,10 @@ export default function Loading(p: Props) {
                         <div
                             style={{
                                 position: "absolute",
-                                width: svgSize,
-                                height: svgSize,
-                                left: circleOffsetX,
-                                top: circleOffsetY,
-                                display: "flex",
-                                alignItems:
-                                    labelOutsideDirection === "top"
-                                        ? "flex-start"
-                                        : labelOutsideDirection === "bottom"
-                                        ? "flex-end"
-                                        : "center",
-                                justifyContent: mapLabelAlign(labelPosition),
+                                left: insideLabelX,
+                                top: insideLabelY,
                                 pointerEvents: "none",
-                                paddingLeft: circleLabelInset,
-                                paddingRight: circleLabelInset,
-                                paddingTop: circleLabelInset,
-                                paddingBottom: circleLabelInset,
+                                transform: insideLabelTransform,
                             }}
                         >
                             <div
@@ -1417,7 +1543,6 @@ export default function Loading(p: Props) {
                                 style={{
                                     ...baseLabelStyle,
                                     position: "relative",
-                                    transform: insideLabelOffset,
                                 }}
                             >
                                 {initialLabelValue}
@@ -1443,7 +1568,7 @@ export default function Loading(p: Props) {
                                 const ly = svgSize / 2 + labelRadius * Math.sin(rad)
                                 const inlineTransforms: string[] = ["translate(-50%, -50%)"]
                                 if (labelOffsetX) inlineTransforms.push(`translateX(${labelOffsetX}px)`)
-                                if (labelOffsetY) inlineTransforms.push(`translateY(${labelOffsetY}px)`)
+                                if (labelOffsetY) inlineTransforms.push(`translateY(${-labelOffsetY}px)`)
                                 return (
                                     <div
                                         ref={setLabelRef}
@@ -1467,121 +1592,372 @@ export default function Loading(p: Props) {
         }
 
         // Bar rendering (default)
-        if (fillStyle === "solid") {
-            // Solid bar - use content width and center
-            return (
-                <div
-                    style={{
-                        width: `${contentWidth}px`,
-                        height: `${barContainerHeight}px`,
-                        position: "relative",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-start",
-                        boxSizing: "border-box",
-                    }}
-                >
-                    <div
-                        style={{
-                            position: "absolute",
-                            top: "50%",
-                            left: 0,
-                            width: "100%",
-                            height: `${thickness}px`,
-                            background: trackBackground,
-                            borderRadius: barRadius,
-                            overflow: "hidden",
-                            border:
-                                showBorder && borderWidth > 0
-                                    ? `${borderWidth}px solid ${borderColor}`
-                                    : "none",
-                            boxSizing: "border-box",
-                            transform: "translateY(-50%)",
-                        }}
-                    >
-                        <motion.div
+        if (fillStyle === "solid" || fillStyle === "lines") {
+            const isOutsideLabel = labelOutside
+            const isInsideLabel = labelInside
+            const measuredLabelWidth = labelBounds.width || 0
+            const measuredLabelHeight = labelBounds.height || 0
+            const verticalGap = BAR_LABEL_GAP
+
+            let reserveLeft = 0
+            let reserveRight = 0
+            const labelOffsetXValue = labelOffsetX || 0
+            const minBarWidth = Math.max(40, thickness * 2)
+            if (isOutsideLabel && measuredLabelWidth > 0) {
+                for (let i = 0; i < 4; i++) {
+                    const barWidthCandidate = Math.max(
+                        minBarWidth,
+                        contentWidth - reserveLeft - reserveRight
+                    )
+                    const barLeftCandidate = reserveLeft
+                    const barRightCandidate = barLeftCandidate + barWidthCandidate
+                    const barCenterCandidate = barLeftCandidate + barWidthCandidate / 2
+                    const anchorXCandidate =
+                        labelPosition === "left"
+                            ? barLeftCandidate
+                            : labelPosition === "right"
+                            ? barRightCandidate
+                            : barCenterCandidate
+                    const bounds = computeOutsideLabelBounds(
+                        labelPosition,
+                        anchorXCandidate,
+                        measuredLabelWidth,
+                        labelOffsetXValue
+                    )
+                    let adjusted = false
+                    if (bounds.left < 0) {
+                        const availableLeft = Math.max(
+                            0,
+                            contentWidth - minBarWidth - reserveRight
+                        )
+                        const delta = Math.min(-bounds.left, availableLeft)
+                        if (delta > 0) {
+                            reserveLeft += delta
+                            adjusted = true
+                        }
+                    }
+                    if (bounds.right > contentWidth) {
+                        const availableRight = Math.max(
+                            0,
+                            contentWidth - minBarWidth - reserveLeft
+                        )
+                        const delta = Math.min(
+                            bounds.right - contentWidth,
+                            availableRight
+                        )
+                        if (delta > 0) {
+                            reserveRight += delta
+                            adjusted = true
+                        }
+                    }
+                    if (!adjusted) break
+                }
+            }
+            if (isInsideLabel && measuredLabelWidth > 0) {
+                for (let i = 0; i < 4; i++) {
+                    const barWidthCandidate = Math.max(
+                        minBarWidth,
+                        contentWidth - reserveLeft - reserveRight
+                    )
+                    const barLeftCandidate = reserveLeft
+                    const barRightCandidate = barLeftCandidate + barWidthCandidate
+                    const barCenterCandidate = barLeftCandidate + barWidthCandidate / 2
+                    const leadingGapCandidate = barLeftCandidate
+                    const trailingGapCandidate =
+                        contentWidth - barLeftCandidate - barWidthCandidate
+                    const bounds = computeInsideLabelBounds(
+                        labelPosition,
+                        barLeftCandidate,
+                        barRightCandidate,
+                        barWidthCandidate,
+                        leadingGapCandidate + insidePaddingLeft,
+                        trailingGapCandidate + insidePaddingRight,
+                        measuredLabelWidth,
+                        labelOffsetXValue
+                    )
+                    let adjusted = false
+                    if (bounds.left < 0) {
+                        const availableLeft = Math.max(
+                            0,
+                            contentWidth - minBarWidth - reserveRight
+                        )
+                        const delta = Math.min(-bounds.left, availableLeft)
+                        if (delta > 0) {
+                            reserveLeft += delta
+                            adjusted = true
+                        }
+                    }
+                    if (bounds.right > contentWidth) {
+                        const availableRight = Math.max(
+                            0,
+                            contentWidth - minBarWidth - reserveLeft
+                        )
+                        const delta = Math.min(
+                            bounds.right - contentWidth,
+                            availableRight
+                        )
+                        if (delta > 0) {
+                            reserveRight += delta
+                            adjusted = true
+                        }
+                    }
+                    if (!adjusted) break
+                }
+            }
+            // labelOffsetX shrinks the bar horizontally to emulate offset for all label positions
+            // This creates the visual illusion that the label is offset while keeping the bar within bounds
+            const barWidthAdjustment = labelOffsetXValue !== 0 ? Math.abs(labelOffsetXValue) : 0
+            const barWidth = Math.max(minBarWidth, contentWidth - reserveLeft - reserveRight - barWidthAdjustment)
+            const barOffsetX = reserveLeft
+            const barLeft = barOffsetX
+            const barRight = barOffsetX + barWidth
+            const barCenterX = barOffsetX + barWidth / 2
+
+            const labelHeightForLayout =
+                measuredLabelHeight || estimatedLabelHeight
+            const containerContentHeight = Math.max(
+                barContainerHeight,
+                labelHeightForLayout
+            )
+            const totalContainerHeight =
+                containerContentHeight + LABEL_VERTICAL_OFFSET * 2
+
+            // Bar and labels share a centered baseline; top/bottom labels sit 30px above/below it
+            const barCenterY = totalContainerHeight / 2
+            
+            const overlayPaddingLeft = barOffsetX + insidePaddingLeft
+            const overlayPaddingRight =
+                contentWidth - barOffsetX - barWidth + insidePaddingRight
+
+            // Outside label positioning
+            let outsideLabelStyle: React.CSSProperties | null = null
+            if (isOutsideLabel) {
+                // Calculate horizontal anchor point based on labelPosition (same for all vertical directions)
+                const anchorX =
+                    labelPosition === "left"
+                        ? barLeft
+                        : labelPosition === "right"
+                        ? barRight
+                        : barCenterX
+                
+                const effectiveLabelHeight =
+                    measuredLabelHeight || estimatedLabelHeight
+
+                // Calculate vertical position: center stays at barCenterY, top/bottom offset by 30px
+                const verticalOffset = 
+                    labelOutsideDirection === "top"
+                        ? -LABEL_VERTICAL_OFFSET
+                        : labelOutsideDirection === "bottom"
+                        ? LABEL_VERTICAL_OFFSET
+                        : 0
+                
+                // Apply user offset (labelOffsetY) - note: positive Y moves down in CSS
+                const totalVerticalOffset = verticalOffset - (labelOffsetY || 0)
+                
+                // Calculate the center Y position of the label
+                const labelCenterY = barCenterY + totalVerticalOffset
+                
+                // Calculate top position (center minus half height)
+                const outsideTop = labelCenterY - effectiveLabelHeight / 2
+
+                // Build transform array for horizontal alignment
+                const outsideTransforms: string[] = []
+                if (labelPosition === "center") {
+                    outsideTransforms.push("translateX(-50%)")
+                } else if (labelPosition === "right") {
+                    outsideTransforms.push("translateX(-100%)")
+                }
+                // left position doesn't need transform - it's already at the anchor point
+                
+                // Apply horizontal offset if provided
+                if (labelOffsetX) {
+                    outsideTransforms.push(`translateX(${labelOffsetX}px)`)
+                }
+                
+                outsideLabelStyle = {
+                    ...baseLabelStyle,
+                    position: "absolute",
+                    whiteSpace: "nowrap",
+                    pointerEvents: "none",
+                    left: anchorX,
+                    top: outsideTop,
+                    transform: outsideTransforms.length ? outsideTransforms.join(" ") : undefined,
+                }
+            }
+            
+            // Inside label positioning
+            const insideOverlayStyle: React.CSSProperties = {
+                ...insideLabelOverlayBase,
+                left: 0,
+                width: contentWidth,
+                paddingLeft: overlayPaddingLeft,
+                paddingRight: overlayPaddingRight,
+            }
+            
+            // Update inside overlay alignment based on labelPosition
+            if (isInsideLabel) {
+                if (labelPosition === "left") {
+                    insideOverlayStyle.justifyContent = "flex-start"
+                } else if (labelPosition === "right") {
+                    insideOverlayStyle.justifyContent = "flex-end"
+                } else {
+                    // center
+                    insideOverlayStyle.justifyContent = "center"
+                }
+            }
+
+            const barOuterWrapperStyle: React.CSSProperties = {
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                paddingTop: BAR_EXTRA_TOP,
+                paddingBottom: BAR_EXTRA_BOTTOM,
+                boxSizing: "border-box",
+            }
+
+            if (fillStyle === "solid") {
+                return (
+                    <div style={barOuterWrapperStyle}>
+                        <div
                             style={{
-                                width: "100%",
-                                height: "100%",
-                                background: barColor,
-                                borderRadius: barRadius,
-                                transformOrigin: "left center",
-                                scaleX: progress,
+                                width: `${contentWidth}px`,
+                                height: `${totalContainerHeight}px`,
+                                position: "relative",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "flex-start",
+                                boxSizing: "border-box",
+                                overflow: "visible",
                             }}
-                        />
-                    </div>
-                    {labelInside && (
-                        <div style={insideLabelOverlayBar}>
+                        >
                             <div
-                                ref={setLabelRef}
                                 style={{
-                                    ...baseLabelStyle,
-                                    whiteSpace: "nowrap",
-                                    transform: insideLabelOffset,
+                                    position: "absolute",
+                                    top: "50%",
+                                    left: `${barOffsetX}px`,
+                                    width: `${barWidth}px`,
+                                    height: `${thickness}px`,
+                                    background: trackBackground,
+                                    borderRadius: barRadius,
+                                    overflow: "hidden",
+                                    border:
+                                        showBorder && borderWidth > 0
+                                            ? `${borderWidth}px solid ${borderColor}`
+                                            : "none",
+                                    boxSizing: "border-box",
+                                    transform: "translateY(-50%)",
                                 }}
                             >
-                                {initialLabelValue}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )
-        } else {
-            // Lines mode for bar
-            const numLines = Math.floor(progressValue * 20)
-            const lineRadius = Math.max(0, Math.min(barRadius, thickness / 2))
-            return (
-                <div
-                    style={{
-                        width: `${contentWidth}px`, // Use actual content width instead of 100%
-                        height: `${barContainerHeight}px`,
-                        position: "relative",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-start",
-                        boxSizing: "border-box",
-                    }}
-                >
-                    <div
-                        style={{
-                            position: "absolute",
-                            top: "50%",
-                            left: 0,
-                            width: "100%",
-                            height: `${thickness}px`,
-                            background: trackBackground,
-                            borderRadius: barRadius,
-                            overflow: "hidden",
-                            border:
-                                showBorder && borderWidth > 0
-                                    ? `${borderWidth}px solid ${borderColor}`
-                                    : "none",
-                            boxSizing: "border-box",
-                            display: "flex",
-                            gap: 2,
-                            padding: 2,
-                            transform: "translateY(-50%)",
-                        }}
-                    >
-                        {Array.from({ length: 20 }).map((_, i) => {
-                            const shouldShow = i < numLines
-                            return (
-                                <div
-                                    key={i}
+                                <motion.div
                                     style={{
-                                        flex: 1,
+                                        width: "100%",
                                         height: "100%",
-                                        background: shouldShow ? barColor : trackBackground,
-                                        borderRadius: lineRadius,
-                                        opacity: shouldShow ? 1 : showTrack ? 0.3 : 0,
-                                        transition: "all 0.2s ease",
+                                        background: barColor,
+                                        borderRadius: barRadius,
+                                        transformOrigin: "left center",
+                                        scaleX: progress,
                                     }}
                                 />
-                            )
-                        })}
+                            </div>
+                            {labelInside && (
+                                <div style={insideOverlayStyle}>
+                                    <div
+                                        ref={setLabelRef}
+                                        style={{
+                                            ...baseLabelStyle,
+                                            whiteSpace: "nowrap",
+                                            transform: insideLabelOffset,
+                                        }}
+                                    >
+                                        {initialLabelValue}
+                                    </div>
+                                </div>
+                            )}
+                            {outsideLabelStyle && (
+                                <div ref={setLabelRef} style={outsideLabelStyle}>
+                                    {initialLabelValue}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )
+            }
+
+            const numLines = Math.floor(progressValue * 16)
+            const lineRadius = Math.max(0, Math.min(barRadius, thickness / 2))
+            const segmentLayerStyle: React.CSSProperties = {
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                gap: 2,
+                padding: 2,
+            }
+
+            return (
+                <div style={barOuterWrapperStyle}>
+                        <div
+                            style={{
+                                width: `${contentWidth}px`,
+                                height: `${totalContainerHeight}px`,
+                                position: "relative",
+                                overflow: "visible",
+                            }}
+                        >
+                        <div
+                            style={{
+                                position: "absolute",
+                                top: "50%",
+                                left: `${barOffsetX}px`,
+                                width: `${barWidth}px`,
+                                height: `${thickness}px`,
+                                borderRadius: barRadius,
+                                border:
+                                    showBorder && borderWidth > 0
+                                        ? `${borderWidth}px solid ${borderColor}`
+                                        : "none",
+                                background: "transparent",
+                                boxSizing: "border-box",
+                                overflow: outsideLabelStyle ? "visible" : "hidden",
+                                transform: "translateY(-50%)",
+                            }}
+                        >
+                        {showTrack && (
+                            <div style={segmentLayerStyle}>
+                                {Array.from({ length: 16 }).map((_, i) => (
+                                    <div
+                                        key={`track-${i}`}
+                                        style={{
+                                            flex: 1,
+                                            height: "100%",
+                                            borderRadius: lineRadius,
+                                            background: trackColor,
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        <div style={segmentLayerStyle}>
+                            {Array.from({ length: 16 }).map((_, i) => {
+                                const shouldShow = i < numLines
+                                return (
+                                    <div
+                                        key={i}
+                                        style={{
+                                            flex: 1,
+                                            height: "100%",
+                                            borderRadius: lineRadius,
+                                            background: shouldShow ? barColor : "transparent",
+                                            opacity: shouldShow ? 1 : 0,
+                                            transition: "all 0.2s ease",
+                                        }}
+                                    />
+                                )
+                            })}
+                        </div>
                     </div>
                     {labelInside && (
-                        <div style={insideLabelOverlayBar}>
+                        <div style={insideOverlayStyle}>
                             <div
                                 ref={setLabelRef}
                                 style={{
@@ -1594,6 +1970,12 @@ export default function Loading(p: Props) {
                             </div>
                         </div>
                     )}
+                    {isOutsideLabel && (
+                        <div ref={setLabelRef} style={outsideLabelStyle}>
+                            {initialLabelValue}
+                        </div>
+                    )}
+                    </div>
                 </div>
             )
         }
@@ -1603,13 +1985,13 @@ export default function Loading(p: Props) {
     // Use absolute positioning to fill the space inside the root padding
     const contentWrapperStyle: React.CSSProperties = {
         position: "absolute",
-        top: outsidePadding.top,
+        top: wrapperTop,
         left: outsidePadding.left,
         right: outsidePadding.right,
         bottom: outsidePadding.bottom,
         display: "flex",
         alignItems: "center", // Center vertically
-        justifyContent: animationStyle === "circle" ? "center" : "flex-start", // Left for bar/text, center for circle
+        justifyContent: "center", // Always center in live view
     }
 
     return (
@@ -1617,7 +1999,7 @@ export default function Loading(p: Props) {
             <div style={contentWrapperStyle}>
                 {renderContent()}
             </div>
-            {labelOutside && (
+            {shouldRenderGlobalOutsideLabel && (
                 <div ref={setLabelRef} style={outsideLabelStyle}>
                     {initialLabelValue}
                 </div>
@@ -1790,6 +2172,10 @@ function clampValue(n: number) {
     return Math.max(0, Math.min(1, n))
 }
 
+function clampNumber(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value))
+}
+
 function parseFontSizeValue(value?: number | string) {
     if (value == null) return undefined
     if (typeof value === "number" && isFinite(value)) return value
@@ -1831,6 +2217,45 @@ function getInlineAngle(
     }
     const angleRad = Math.atan2(hasY ? y : 0, hasX ? x : 0)
     return (angleRad * 180) / Math.PI
+}
+
+function computeOutsideLabelBounds(
+    position: "left" | "center" | "right",
+    anchorX: number,
+    labelWidth: number,
+    offsetX: number
+) {
+    if (position === "left") {
+        const left = anchorX + offsetX
+        return { left, right: left + labelWidth }
+    }
+    if (position === "right") {
+        const right = anchorX + offsetX
+        return { left: right - labelWidth, right }
+    }
+    const left = anchorX - labelWidth / 2 + offsetX
+    return { left, right: left + labelWidth }
+}
+
+function computeInsideLabelBounds(
+    position: "left" | "center" | "right",
+    barLeft: number,
+    barRight: number,
+    barWidth: number,
+    paddingLeft: number,
+    paddingRight: number,
+    labelWidth: number,
+    offsetX: number
+) {
+    let left: number
+    if (position === "left") {
+        left = barLeft + paddingLeft + offsetX
+    } else if (position === "right") {
+        left = barRight - paddingRight - labelWidth + offsetX
+    } else {
+        left = barLeft + (barWidth - labelWidth) / 2 + offsetX
+    }
+    return { left, right: left + labelWidth }
 }
 
 function createGateEvent(target: EventTarget | null) {
@@ -2180,24 +2605,6 @@ addPropertyControls(Loading, {
                     if (["outside", "inline"].includes(placement as string)) return false
                     if (placement === "inside" && anim === "bar") return false
                     return true
-                },
-            },
-            labelPlacement: {
-                type: ControlType.Enum,
-                title: "Placement",
-                options: ["inside", "outside", "inline"],
-                optionTitles: ["Inside", "Outside", "Inline"],
-                displaySegmentedControl: true,
-                defaultValue: DEFAULT_LOAD_BAR.labelPlacement,
-                hidden: (label: any = {}, props: any = {}) => {
-                    if (!(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel)) return true
-                    const anim =
-                        props?.loadBar?.animationStyle ??
-                        props?.bar?.animationStyle ??
-                        DEFAULT_LOAD_BAR.animationStyle
-                    return anim !== "circle"
-                        ? (label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement) === "inline"
-                        : false
                 },
             },
         },
