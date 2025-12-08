@@ -3157,24 +3157,19 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         // For top/bottom labels, when labelOffsetX shrinks the bar, we need to compensate
         // so the label stays in the same position relative to where the bar would have been at full width
         const isTopBottomOutside = axisY !== 0
-        // When bar shrinks due to labelOffsetX, edges move inward by half the shrink amount.
-        // The bar width uses Math.abs(labelOffsetX), so it always shrinks by the same amount regardless of sign.
-        // To keep label in same visual position, compensate by moving anchor outward by half the shrink amount.
-        // The direction of compensation depends on which edge we're anchoring to, not the sign of labelOffsetX.
-        const barShrinkAmount = isTopBottomOutside && labelOffsetX ? Math.abs(labelOffsetX) / 2 : 0
+        // Match center-row behavior: do not shrink the bar based on X offset
+        const barShrinkAmount = 0
         
         let anchorX: number
         let horizontalTransform: string
 
         if (axisX === -1) {
             // Left: anchor at bar left edge minus spacing, right-align label
-            // When bar shrinks, left edge moves right. To compensate, move anchor left (outward from bar center)
-            anchorX = barRect.left - outsideSpacing - barShrinkAmount
+            anchorX = barRect.left - outsideSpacing
             horizontalTransform = "translateX(-100%)"
         } else if (axisX === 1) {
             // Right: anchor at bar right edge plus spacing, left-align label
-            // When bar shrinks, right edge moves left. To compensate, move anchor right (outward from bar center)
-            anchorX = barRect.right + outsideSpacing + barShrinkAmount
+            anchorX = barRect.right + outsideSpacing
             horizontalTransform = "translateX(0)"
         } else {
             // Center: anchor at bar center, center label
@@ -3201,30 +3196,30 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
 
         const transforms: string[] = [horizontalTransform, verticalTransform]
 
-        // For corner positions (both axisX and axisY non-zero), move 100px towards center on X axis only
+        // Corner positions (top-left, top-right, bottom-left, bottom-right):
+        // add a small X nudge toward center so their combined X/Y offsets stay balanced
         if (axisX !== 0 && axisY !== 0) {
             // Move towards center on X: opposite direction of axisX
             const cornerOffsetX = -axisX * 100
             transforms.push(`translateX(${cornerOffsetX}px)`)
         }
 
-        // Extra 5px to the right for top/bottom rows only
+        // Top/bottom row labels get a tiny right nudge to avoid edge overlap
         if (axisY !== 0) transforms.push("translateX(5px)")
 
         // Clamp label transform so it never crosses the bar edge
         let effectiveOffsetX = labelOffsetX || 0
         const baseGap = 5
         
-        if (labelOutside && loadBar.labelPosition === "right" && axisY === 0) {
-            // For right-aligned outside label on center row: labelLeft >= barRight + gap and labelRight <= windowWidth
+        // Center row AND top/bottom center: treat like center row for X clamp
+        if (labelOutside && loadBar.labelPosition === "right") {
             // Label is left-aligned at anchorX, so labelLeft = anchorX + effectiveOffsetX
             // We need: anchorX + effectiveOffsetX >= barRect.right + baseGap
             // And: anchorX + effectiveOffsetX + labelRect.width <= containerWidth
             const minOffset = barRect.right + baseGap - anchorX
             const maxOffset = containerWidth - anchorX - labelRect.width
             effectiveOffsetX = Math.max(minOffset, Math.min(effectiveOffsetX, maxOffset))
-        } else if (labelOutside && loadBar.labelPosition === "left" && axisY === 0) {
-            // For left-aligned outside label on center row: labelRight <= barLeft - gap and labelLeft >= 0
+        } else if (labelOutside && loadBar.labelPosition === "left") {
             // Label is right-aligned at anchorX, so labelRight = anchorX + effectiveOffsetX
             // We need: anchorX + effectiveOffsetX <= barRect.left - baseGap
             // And: anchorX + effectiveOffsetX - labelRect.width >= 0
@@ -3233,14 +3228,11 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             effectiveOffsetX = Math.max(minOffset, Math.min(effectiveOffsetX, maxOffset))
         }
 
-        // For top/bottom labels, labelOffsetX shrinks the bar instead of moving the label
-        // Only apply translateX(effectiveOffsetX) for center row labels
-        // Positive offsetX moves label to the right, negative moves it to the left
-        // Check explicitly for non-zero to handle negative values correctly
-        if (effectiveOffsetX !== 0 && axisY === 0) transforms.push(`translateX(${effectiveOffsetX}px)`)
-        // labelOffsetY is already applied in the anchor calculation for top/bottom labels
-        // Only apply it in transform for center row labels (where anchor doesn't include it)
-        if (labelOffsetY && axisY === 0) transforms.push(`translateY(${-labelOffsetY}px)`)
+        // Center row (left/center/right) and top/bottom center:
+        // apply X/Y offsets directly as transforms so label moves like center-center (no bar shrink)
+        // Corners already include the small nudge above and also get these transforms
+        if (effectiveOffsetX !== 0) transforms.push(`translateX(${effectiveOffsetX}px)`)
+        if (labelOffsetY) transforms.push(`translateY(${-labelOffsetY}px)`)
 
         // Convert from viewport coords to bar-local coords
         const barOriginX = barRect.left
@@ -4123,9 +4115,8 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 }
             }
             
-            // If label is outside on top/bottom rows, X offset should shrink the bar.
-            const isTopBottomOutside = isOutside && loadBar.labelOutsideDirection !== "center"
-            const barWidthAdjustment = isTopBottomOutside ? Math.abs(labelOffsetXValue) : 0
+            // Match center-row behavior: do not shrink bar width for X offset
+            const barWidthAdjustment = 0
             
             // Final bar width in preview - reduced by both reserves and X offset adjustment
             const previewBarWidth = Math.max(
