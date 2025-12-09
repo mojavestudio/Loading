@@ -1035,9 +1035,9 @@ export default function Loading(p: Props) {
             if (axisY !== 0) transforms.push(`translateY(${axisY * verticalReach}px)`)
             // Extra 5px to the right for top/bottom rows only
             if (axisY !== 0) transforms.push("translateX(5px)")
-            // For top/bottom labels, labelOffsetX shrinks the bar instead of moving the label
-            // Only apply translateX(labelOffsetX) for center row labels
-            if (labelOffsetX && axisY === 0) transforms.push(`translateX(${labelOffsetX}px)`)
+            // Treat all right-side bar+outside labels like center-right for X offset:
+            // apply translateX(labelOffsetX) whenever the label is on the right (axisX === 1)
+            if (labelOffsetX && axisX === 1) transforms.push(`translateX(${labelOffsetX}px)`)
             if (labelOffsetY) transforms.push(`translateY(${-labelOffsetY}px)`)
             outsideLabelStyle.transform = transforms.join(" ")
             appliedBarOutside = true

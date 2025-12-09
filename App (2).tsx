@@ -3212,39 +3212,27 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         const baseGap = 5
         
         // Center row AND top/bottom center: treat like center row for X clamp
-        // Only apply clamping to center positions (center top, center bottom, center center, center left, center right)
-        // Corners (top-left, top-right, bottom-left, bottom-right) get x offset applied directly without clamping
-        const isCenterPosition = axisX === 0 || axisY === 0
-        
-        if (isCenterPosition) {
-            if (labelOutside && loadBar.labelPosition === "right") {
-                // Label is left-aligned at anchorX, so labelLeft = anchorX + effectiveOffsetX
-                // We need: anchorX + effectiveOffsetX >= barRect.right + baseGap
-                // And: anchorX + effectiveOffsetX + labelRect.width <= containerWidth
-                const minOffset = barRect.right + baseGap - anchorX
-                const maxOffset = containerWidth - anchorX - labelRect.width
-                effectiveOffsetX = Math.max(minOffset, Math.min(effectiveOffsetX, maxOffset))
-            } else if (labelOutside && loadBar.labelPosition === "left") {
-                // Label is right-aligned at anchorX, so labelRight = anchorX + effectiveOffsetX
-                // We need: anchorX + effectiveOffsetX <= barRect.left - baseGap
-                // And: anchorX + effectiveOffsetX - labelRect.width >= 0
-                const maxOffset = barRect.left - baseGap - anchorX
-                const minOffset = labelRect.width - anchorX
-                effectiveOffsetX = Math.max(minOffset, Math.min(effectiveOffsetX, maxOffset))
-            }
+        if (labelOutside && loadBar.labelPosition === "right") {
+            // Label is left-aligned at anchorX, so labelLeft = anchorX + effectiveOffsetX
+            // We need: anchorX + effectiveOffsetX >= barRect.right + baseGap
+            // And: anchorX + effectiveOffsetX + labelRect.width <= containerWidth
+            const minOffset = barRect.right + baseGap - anchorX
+            const maxOffset = containerWidth - anchorX - labelRect.width
+            effectiveOffsetX = Math.max(minOffset, Math.min(effectiveOffsetX, maxOffset))
+        } else if (labelOutside && loadBar.labelPosition === "left") {
+            // Label is right-aligned at anchorX, so labelRight = anchorX + effectiveOffsetX
+            // We need: anchorX + effectiveOffsetX <= barRect.left - baseGap
+            // And: anchorX + effectiveOffsetX - labelRect.width >= 0
+            const maxOffset = barRect.left - baseGap - anchorX
+            const minOffset = labelRect.width - anchorX
+            effectiveOffsetX = Math.max(minOffset, Math.min(effectiveOffsetX, maxOffset))
         }
 
-        // Center positions (left/center/right on center row, and top/bottom center):
+        // Center row (left/center/right) and top/bottom center:
         // apply X/Y offsets directly as transforms so label moves like center-center (no bar shrink)
-        if (isCenterPosition) {
-            if (effectiveOffsetX !== 0) transforms.push(`translateX(${effectiveOffsetX}px)`)
-            if (labelOffsetY) transforms.push(`translateY(${-labelOffsetY}px)`)
-        } else {
-            // Corner positions: apply x offset directly without clamping (from GitHub version)
-            // This preserves the working corner x offset behavior
-            if (labelOffsetX !== 0) transforms.push(`translateX(${labelOffsetX}px)`)
-            // labelOffsetY is already applied in the anchor calculation for top/bottom labels
-        }
+        // Corners already include the small nudge above and also get these transforms
+        if (effectiveOffsetX !== 0) transforms.push(`translateX(${effectiveOffsetX}px)`)
+        if (labelOffsetY) transforms.push(`translateY(${-labelOffsetY}px)`)
 
         // Convert from viewport coords to bar-local coords
         const barOriginX = barRect.left
@@ -3292,7 +3280,6 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             ? Math.max(0, -labelOffsetX)
             : 0
     if (labelOutside && label) {
-        // Vertical reserve for top/bottom rows
         if (loadBar.labelOutsideDirection === "top") {
             outsidePadding.top = Math.max(
                 outsidePadding.top,
@@ -3303,33 +3290,43 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 outsidePadding.bottom,
                 outsideLabelSize.height + outsideSpacing + bottomOffsetShift
             )
+        } else {
+            // Reserve space for side labels
+            if (loadBar.labelPosition === "left") {
+                outsidePadding.left = Math.max(
+                    outsidePadding.left,
+                    outsideLabelSize.width + outsideSpacing + leftOffsetShift
+                )
+            } else if (loadBar.labelPosition === "right") {
+                outsidePadding.right = Math.max(
+                    outsidePadding.right,
+                    outsideLabelSize.width + outsideSpacing + rightOffsetShift
+                )
         }
-
-        // Horizontal reserve for side labels (left/right) on all rows
-        if (loadBar.labelPosition === "left") {
-            outsidePadding.left = Math.max(
-                outsidePadding.left,
-                outsideLabelSize.width + outsideSpacing + leftOffsetShift
-            )
-        } else if (loadBar.labelPosition === "right") {
-            outsidePadding.right = Math.max(
-                outsidePadding.right,
-                outsideLabelSize.width + outsideSpacing + rightOffsetShift
-            )
         }
     }
+    
+    // For center-aligned labels on top/bottom, reserve horizontal space if offset is applied
+    if (
+        labelOutside &&
+        loadBar.labelPosition === "center" &&
+        (labelOffsetX || 0) !== 0
+    ) {
+        const horizontalReserve = Math.abs(labelOffsetX)
+        outsidePadding.left = Math.max(outsidePadding.left, horizontalReserve)
+        outsidePadding.right = Math.max(outsidePadding.right, horizontalReserve)
+    }
 
-    // Base dimensions and padded box
     const baseWidth = Math.max(1, width)
     const baseHeight = Math.max(1, height)
+    // Expand preview box horizontally when outside labels are present so they stay within bounds
     const clampedWidth = baseWidth + outsidePadding.left + outsidePadding.right
-
     // For bar mode, ensure clampedHeight accounts for thickness, border, padding, and vertical label offset reserve
     const barLabelVerticalReserve =
         labelOutside && loadBar.animationStyle === "bar" ? LABEL_VERTICAL_OFFSET * 2 : 0
-    const barHeight = loadBar.animationStyle === "bar"
-        ? loadBar.thickness +
-          (loadBar.showBorder ? loadBar.borderWidth * 2 : 0) +
+    const barHeight = loadBar.animationStyle === "bar" 
+        ? loadBar.thickness + 
+          (loadBar.showBorder ? loadBar.borderWidth * 2 : 0) + 
           (loadBar.fillStyle === "lines" ? 4 : 0) // 2px padding top + 2px bottom
         : 0
     const clampedHeight = Math.max(
@@ -3973,8 +3970,6 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             let reserveRight = 0
             const minBarWidth = Math.max(40, loadBar.thickness * 2)
             const labelOffsetXValue = labelOffsetX || 0
-            const offsetForBounds = labelOffsetXValue
-            // Run reserve loop for all outside labels (matches GitHub/corner behavior)
             if (isOutside && measuredLabelWidth > 0) {
                 for (let i = 0; i < 4; i++) {
                     const barWidthCandidate = Math.max(
@@ -3994,7 +3989,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         loadBar.labelPosition,
                         anchorXCandidate,
                         measuredLabelWidth,
-                        offsetForBounds
+                        labelOffsetXValue
                     )
                     let adjusted = false
                     if (bounds.left < 0) {
@@ -4120,7 +4115,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 }
             }
             
-            // Make bar width behavior match GitHub's version: no width adjustment for any position
+            // Match center-row behavior: do not shrink bar width for X offset
             const barWidthAdjustment = 0
             
             // Final bar width in preview - reduced by both reserves and X offset adjustment
@@ -4376,8 +4371,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 }
             }
             
-            // Make bar width behavior match GitHub's version: no width adjustment for any position
-            const barWidthAdjustment = 0
+            // If label is outside on top/bottom rows, X offset should shrink the bar.
+            const isTopBottomOutside = isOutside && loadBar.labelOutsideDirection !== "center"
+            const barWidthAdjustment = isTopBottomOutside ? Math.abs(labelOffsetXValue) : 0
             
             // Final bar width in preview - reduced by both reserves and X offset adjustment
             const previewBarWidth = Math.max(
