@@ -399,11 +399,24 @@ export default function Loading(p: Props) {
         loadBarOverrides.labelOffsetY,
         DEFAULT_LOAD_BAR.labelOffsetY ?? 0
     ) ?? 0
-    const labelOffsetX = clampNumber(
-        labelOffsetXRaw,
-        LABEL_OFFSET_LIMITS.x.min,
-        LABEL_OFFSET_LIMITS.x.max
-    )
+    // Asymmetric clamping for X offset based on horizontal alignment
+    // Right: allow up to +130 to the right, cap left movement at -70
+    // Left: allow up to -130 to the left, cap right movement at +70
+    // Center: cap both directions at +/-100
+    let offsetXMin = LABEL_OFFSET_LIMITS.x.min
+    let offsetXMax = LABEL_OFFSET_LIMITS.x.max
+    if (labelPosition === "right") {
+        offsetXMin = -70
+        offsetXMax = 130
+    } else if (labelPosition === "left") {
+        offsetXMin = -130
+        offsetXMax = 70
+    } else {
+        offsetXMin = -100
+        offsetXMax = 100
+    }
+
+    const labelOffsetX = clampNumber(labelOffsetXRaw, offsetXMin, offsetXMax)
     const labelOffsetY = clampNumber(
         labelOffsetYRaw,
         LABEL_OFFSET_LIMITS.y.min,
@@ -495,21 +508,16 @@ export default function Loading(p: Props) {
     const [isComplete, setIsComplete] = React.useState(false)
 
     React.useEffect(() => {
-        if (gatingOff || firedRef.current) return
+        const errorDebug = (...args: Parameters<typeof console.error>) =>
+            console.error(...args)
 
-        console.log("[Gate] Starting gate logic")
+        if (gatingOff || firedRef.current) return
 
         const minSeconds = Math.max(0, p.minSeconds || 0)
         const minMs = minSeconds * 1000
         const timeoutSeconds = Math.max(0, p.timeoutSeconds || 0)
         const timeoutMs = timeoutSeconds * 1000
 
-        console.log("[Gate] Timings:", {
-            minSeconds,
-            minMs,
-            timeoutSeconds,
-            timeoutMs,
-        })
         gateStartRef.current = performance.now()
         minTimerCompleteRef.current = minMs === 0
         let cancelled = false
@@ -572,9 +580,6 @@ export default function Loading(p: Props) {
                     minTimerCompleteRef.current = true
                     timerProgressRef.current = 1
                     updateVisualProgress()
-                    console.log("[Gate] Minimum time complete", {
-                        elapsedSeconds,
-                    })
                     break
                 }
                 const remainingSeconds = Math.max(
@@ -584,10 +589,6 @@ export default function Loading(p: Props) {
                 const roundedRemaining = Math.ceil(remainingSeconds)
                 if (roundedRemaining < lastLoggedRemainder) {
                     lastLoggedRemainder = roundedRemaining
-                    console.log("[Gate] Minimum time pending", {
-                        elapsedSeconds,
-                        remainingSeconds,
-                    })
                 }
                 const sleepSeconds = Math.min(
                     MINIMUM_WAIT_POLL_SECONDS,
@@ -600,9 +601,6 @@ export default function Loading(p: Props) {
         if (p.oncePerSession) {
             try {
                 if (sessionStorage.getItem(SESSION_FLAG) === "1") {
-                    console.log(
-                        "[Gate] Skipping - already ran this session (holding for minimum)"
-                    )
                     // Important: call finalize without returning it so React cleanup stays a function
                     // Do NOT skip the minimum; finalize() will enforce any remaining hold
                     void finalize()
@@ -650,7 +648,6 @@ export default function Loading(p: Props) {
         // clear the timeout here — we still need the global cap while waiting
         // for the minimum timer to elapse.
         const readySignalPromise: Promise<void> = ready.then(() => {
-            console.log("[Gate] Ready state complete")
             readyCompleteRef.current = true
         })
 
@@ -699,33 +696,19 @@ export default function Loading(p: Props) {
 
                     if (outcome === "timeout") {
                         timedOut = true
-                        console.warn(
-                            "[Gate] Timeout reached before ready state"
-                        )
                         break
                     }
 
-                    console.log(
-                        "[Gate] Minimum met; still waiting for readiness",
-                        {
-                            elapsedSeconds: getElapsedSeconds(),
-                            readyComplete: readyCompleteRef.current,
-                        }
-                    )
+                    // Minimum met but readiness still pending; keep waiting silently
                 }
             }
 
             if (cancelled) return
 
-            console.log("[Gate] Minimum + readiness satisfied, finalizing", {
-                timedOut,
-                minComplete: minTimerCompleteRef.current,
-                readyComplete: readyCompleteRef.current,
-            })
             await finalize()
         }
 
-        runGate().catch((err) => console.error("[Gate] runGate error", err))
+        runGate().catch((err) => errorDebug("[Gate] runGate error", err))
 
         async function finalize(options?: { skipMinimumCheck?: boolean }) {
             if (firedRef.current) return
@@ -739,21 +722,14 @@ export default function Loading(p: Props) {
                 await waitForMinimum()
             }
 
-            console.log("[Gate] Finalizing...")
-
             progress.set(1)
             await waitUntil(() => progress.get() >= 0.995, 1200)
             const hold = Math.max(0, (finishDelay || 0) * 1000)
             if (hold) await delay(hold)
 
             if (p.onReady) {
-                console.log("[Gate] Dispatching onReady event")
                 // Fire a synthetic event that matches Framer's expectations for interaction triggers
                 p.onReady(createGateEvent(rootRef.current))
-            } else {
-                console.log(
-                    "[Gate] No onReady handler wired; skipping dispatch"
-                )
             }
 
             if (p.oncePerSession) {
@@ -1603,7 +1579,20 @@ export default function Loading(p: Props) {
             let reserveRight = 0
             const labelOffsetXValue = labelOffsetX || 0
             const minBarWidth = Math.max(40, thickness * 2)
+
+            // Outside labels: reserve space only when the X offset pushes the label away from the bar edge
             if (isOutsideLabel && measuredLabelWidth > 0) {
+                const isCenterRow = labelOutsideDirection === "center"
+                const movesAwayFromBar =
+                    (labelPosition === "right" && labelOffsetXValue > 0) ||
+                    (labelPosition === "left" && labelOffsetXValue < 0) ||
+                    labelPosition === "center"
+
+                // If the offset is moving the label toward the bar (e.g., right label with negative offset),
+                // skip reserve adjustments entirely so the bar stays at its original size.
+                if (!isCenterRow && !movesAwayFromBar && labelOffsetXValue !== 0) {
+                    // No reserve change, keep bar width untouched.
+                } else {
                 for (let i = 0; i < 4; i++) {
                     const barWidthCandidate = Math.max(
                         minBarWidth,
@@ -1618,11 +1607,16 @@ export default function Loading(p: Props) {
                             : labelPosition === "right"
                             ? barRightCandidate
                             : barCenterCandidate
+                    const offsetForBounds = isCenterRow
+                        ? 0
+                        : movesAwayFromBar
+                        ? labelOffsetXValue
+                        : 0
                     const bounds = computeOutsideLabelBounds(
                         labelPosition,
                         anchorXCandidate,
                         measuredLabelWidth,
-                        labelOffsetXValue
+                        offsetForBounds
                     )
                     let adjusted = false
                     if (bounds.left < 0) {
@@ -1652,7 +1646,10 @@ export default function Loading(p: Props) {
                     }
                     if (!adjusted) break
                 }
+                }
             }
+
+            // Inside labels: unchanged from before
             if (isInsideLabel && measuredLabelWidth > 0) {
                 for (let i = 0; i < 4; i++) {
                     const barWidthCandidate = Math.max(
@@ -1704,10 +1701,31 @@ export default function Loading(p: Props) {
                     if (!adjusted) break
                 }
             }
-            // labelOffsetX shrinks the bar horizontally to emulate offset for all label positions
-            // This creates the visual illusion that the label is offset while keeping the bar within bounds
-            const barWidthAdjustment = labelOffsetXValue !== 0 ? Math.abs(labelOffsetXValue) : 0
-            const barWidth = Math.max(minBarWidth, contentWidth - reserveLeft - reserveRight - barWidthAdjustment)
+
+            // Bar width adjustment: never for center row; for top/bottom only when offset moves label away
+            const isCenterRow = labelOutsideDirection === "center"
+            let barWidthAdjustment = 0
+            if (!isCenterRow && labelOffsetXValue !== 0) {
+                const movesAwayFromBar =
+                    (labelPosition === "right" && labelOffsetXValue > 0) ||
+                    (labelPosition === "left" && labelOffsetXValue < 0) ||
+                    labelPosition === "center"
+
+                if (movesAwayFromBar) {
+                    if (labelPosition === "right") {
+                        barWidthAdjustment = labelOffsetXValue
+                    } else if (labelPosition === "left") {
+                        barWidthAdjustment = -labelOffsetXValue
+                    } else if (labelPosition === "center") {
+                        barWidthAdjustment = Math.abs(labelOffsetXValue)
+                    }
+                }
+            }
+
+            const barWidth = Math.max(
+                minBarWidth,
+                contentWidth - reserveLeft - reserveRight - barWidthAdjustment
+            )
             const barOffsetX = reserveLeft
             const barLeft = barOffsetX
             const barRight = barOffsetX + barWidth
