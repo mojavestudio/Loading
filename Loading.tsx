@@ -1056,24 +1056,28 @@ export default function Loading(p: Props) {
         outsideLabelStyle.transform = outsideLabelTransform.join(" ")
     }
 
-    // Use measured container size when available, otherwise use intrinsic size
-    // This ensures the component respects the dimensions set by Framer via setAttributes
-    const effectiveWidth = containerSize.width > 0 ? containerSize.width : intrinsicSize.width
-    const effectiveHeight = containerSize.height > 0 ? containerSize.height : intrinsicSize.height
-    
+    const hasMeasuredWidth = containerSize.width > 0
+    const hasMeasuredHeight = containerSize.height > 0
+
     const rootStyle: React.CSSProperties = {
         ...p.style,
-        width: "100%",
-        height: "100%",
-        // Set minWidth/minHeight to ensure component doesn't shrink below measured/intrinsic size
-        minWidth: effectiveWidth,
-        minHeight: effectiveHeight,
+        width: p.style?.width ?? "100%",
+        height: p.style?.height ?? "100%",
         position: "relative",
         boxSizing: "border-box",
         paddingTop: outsidePadding.top,
         paddingRight: outsidePadding.right,
         paddingBottom: outsidePadding.bottom,
         paddingLeft: outsidePadding.left,
+    }
+
+    // Only fall back to intrinsic minimums before the component has measured its container.
+    // Once Framer reports explicit canvas sizing, allow the gate to shrink freely with the frame.
+    if (!hasMeasuredWidth) {
+        rootStyle.minWidth = intrinsicSize.width
+    }
+    if (!hasMeasuredHeight) {
+        rootStyle.minHeight = intrinsicSize.height
     }
     if (p.hideWhenComplete && isComplete) {
         rootStyle.display = "none"
