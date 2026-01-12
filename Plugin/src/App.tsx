@@ -160,6 +160,8 @@ const NumberInput = ({
         }
     }
     
+    const isCompact = style?.height !== undefined && Number(style.height) <= 28
+    
     return (
         <div
             style={{
@@ -175,7 +177,16 @@ const NumberInput = ({
                 ...style,
             }}
         >
-            <div style={{ display: "flex", alignItems: "center", flex: 1, gap: "4px", padding: "8px 10px", minWidth: 0 }}>
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    flex: 1,
+                    gap: "4px",
+                    padding: isCompact ? "4px 8px" : "8px 10px",
+                    minWidth: 0,
+                }}
+            >
                 <input
                     type="number"
                     value={value}
@@ -204,7 +215,7 @@ const NumberInput = ({
             <div
                 style={{
                     width: "1px",
-                    height: "18px",
+                    height: isCompact ? "14px" : "18px",
                     background: "var(--border-soft)",
                     flexShrink: 0,
                 }}
@@ -2555,9 +2566,10 @@ export function App() {
                                         </label>
                                         <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 5 }}>Font</span>
-                                            {fontFamilyOptions.length > 0 ? (
+                                            {usingProjectFont ? (
                                                 <select
                                                     value={matchedFontFamily ?? fontFamilyOptions[0] ?? ""}
+                                                    style={{ height: 38, padding: "8px 10px" }}
                                                     onChange={(event) => {
                                                         const nextValue = event.target.value
                                                         const variants = fontsByFamily.get(nextValue) ?? []
@@ -2609,6 +2621,7 @@ export function App() {
                                                 min={8}
                                                 max={24}
                                                 step={1}
+                                                style={{ height: 18 }}
                                             />
                                         </label>
                                         <label style={{ flex: "1 1 0", minWidth: 0 }}>
@@ -2616,6 +2629,7 @@ export function App() {
                                             {usingProjectFont ? (
                                                 <select
                                                     value={String(currentNumericWeight)}
+                                                    style={{ height: 38, padding: "8px 10px" }}
                                                     onChange={(event) => {
                                                         const numeric = Number(event.target.value)
                                                         const variants = fontsByFamily.get(matchedFontFamily ?? "") ?? []
@@ -3226,15 +3240,15 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         if (mode === "numberOnly") return percentLabelText
         return baseLabelText ? `${baseLabelText} ${percentLabelText}` : percentLabelText
     }
-    // For bars: center (both X and Y) = inside, everything else = outside
-    // For circles: use labelPlacement as-is
-    // For bars: 
+    // For bars:
     // - center/center = inside (centered)
     // - left/center or right/center = inside (at edges)
     // - top/bottom = outside (above/below bar, horizontally aligned per labelPosition)
     const effectiveLabelPlacement =
         loadBar.animationStyle === "circle"
-            ? loadBar.labelPlacement
+            ? loadBar.labelPosition === "center" && loadBar.labelOutsideDirection === "center"
+                ? "inside"
+                : "inline"
             : loadBar.labelPlacement === "inline"
             ? "inside"
             : loadBar.animationStyle === "bar" && 
@@ -3930,49 +3944,24 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
 
         if (loadBar.animationStyle === "circle") {
             const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
-            // Reduce circle size to 60% of available space, then shrink by another 20%
-            const circleSize = baseCircleSize * 0.6 * 0.8
+            // Reduce circle size to 60% of available space, then shrink by another 40% (total 20% of original)
+            const circleSize = baseCircleSize * 0.6 * 0.6
             const strokeWidth = loadBar.lineWidth
             const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
             const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
             const circumference = 2 * Math.PI * circleRadius
-            const circleOffsetX = (contentWidth - circleSize) / 2
+            const circleOffsetX = (contentWidth - circleSize) / 2 + 30 // Move 30px to the right
             const circleOffsetY = (contentHeight - circleSize) / 2
             const maxStroke = Math.max(strokeWidth, trackStroke)
             const centerX = circleOffsetX + circleSize / 2
             const centerY = circleOffsetY + circleSize / 2
             
-            // For inside labels: use inscribed square geometry
-            // The largest square that fits inside a circle has side length = radius * √2
-            const insideSquareSide = circleRadius * Math.sqrt(2)
-            const insideSquareHalfSide = insideSquareSide / 2
-            
-            // Add small padding from edge
-            const insidePadding = 8
-            
-            // Calculate inside label positions based on inscribed square edges
-            let insideLabelX = centerX
-            let insideLabelY = centerY
-            
-            if (effectiveLabelPlacement === "inside") {
-                // Horizontal positioning
-                if (loadBar.labelPosition === "left") {
-                    insideLabelX = centerX - insideSquareHalfSide + insidePadding
-                } else if (loadBar.labelPosition === "right") {
-                    insideLabelX = centerX + insideSquareHalfSide - insidePadding
-                } else {
-                    insideLabelX = centerX
-                }
-                
-                // Vertical positioning
-                if (loadBar.labelOutsideDirection === "top") {
-                    insideLabelY = centerY - insideSquareHalfSide + insidePadding
-                } else if (loadBar.labelOutsideDirection === "bottom") {
-                    insideLabelY = centerY + insideSquareHalfSide - insidePadding
-                } else {
-                    insideLabelY = centerY
-                }
-            }
+            // Circle label behavior is intentionally separate from bar logic:
+            // - center/center: inside, dead center
+            // - edges (top/center, bottom/center, left/center, right/center): inline on the circle
+            // - corners: inline but pushed just outside the circle
+            const insideLabelX = centerX
+            const insideLabelY = centerY
             
             const insideLabelTransform = [
                 "translate(-50%, -50%)",
@@ -4100,23 +4089,62 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                             </div>
                         </div>
                     )}
-                    {labelInline && label && (
+		                            {labelInline && label && (
                         <div
                             style={{
                                 position: "absolute",
                                 width: circleSize,
                                 height: circleSize,
-                                left: circleOffsetX,
-                                top: circleOffsetY,
+                                left: "50%",
+                                top: "50%",
+                                transform: "translate(-50%, -50%) translateY(-10px)",
                                 pointerEvents: "none",
                             }}
                         >
-                            {(() => {
-                                const angle = getInlineAngle(loadBar.labelPosition, loadBar.labelOutsideDirection)
-                                const rad = (angle * Math.PI) / 180
-                                const labelRadius = circleRadius
-                                const lx = circleSize / 2 + labelRadius * Math.cos(rad)
-                                const ly = circleSize / 2 + labelRadius * Math.sin(rad)
+		                            {(() => {
+                                // Precise mathematical positioning for circle labels on a 3×3 grid:
+                                // - Center (0,0): dead center of circle
+                                // - Edges (±1,0) or (0,±1): label center on circle edge at 3/6/9/12 o'clock
+                                // - Corners (±1,±1): label at bounding box corners (outside circle plane)
+                                
+                                const isLeft = loadBar.labelPosition === "left"
+                                const isRight = loadBar.labelPosition === "right"
+                                const isTop = loadBar.labelOutsideDirection === "top"
+                                const isBottom = loadBar.labelOutsideDirection === "bottom"
+                                const isCenterH = !isLeft && !isRight
+                                const isCenterV = !isTop && !isBottom
+                                
+                                // Axis values: -1 (left/top), 0 (center), 1 (right/bottom)
+                                const axisX = isLeft ? -1 : isRight ? 1 : 0
+                                const axisY = isTop ? -1 : isBottom ? 1 : 0
+                                
+                                // Determine if this is an edge position (one axis is 0, other is ±1)
+                                const isEdge = (axisX === 0 && axisY !== 0) || (axisY === 0 && axisX !== 0)
+                                const isCorner = axisX !== 0 && axisY !== 0
+                                
+                                let lx: number
+                                let ly: number
+                                
+                                if (isEdge) {
+                                    // Edge positions (3, 6, 9, 12 o'clock): place label center on circle edge
+                                    // Use outer radius (circle radius + half of max stroke width)
+                                    const outerRadius = circleRadius + maxStroke / 2
+                                    const circleCenterX = circleSize / 2
+                                    const circleCenterY = circleSize / 2
+                                    
+                                    lx = circleCenterX + axisX * outerRadius
+                                    ly = circleCenterY + axisY * outerRadius
+                                } else if (isCorner) {
+                                    // Corner positions: place label at the 4 corners of the bounding box
+                                    // This places them outside the circle plane
+                                    lx = axisX === -1 ? 0 : circleSize
+                                    ly = axisY === -1 ? 0 : circleSize
+                                } else {
+                                    // Center position: dead center of circle
+                                    lx = circleSize / 2
+                                    ly = circleSize / 2
+                                }
+                                
                                 const inlineTransforms = [
                                     "translate(-50%, -50%)",
                                     labelOffsetX ? `translateX(${labelOffsetX}px)` : "",
@@ -4124,6 +4152,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 ]
                                     .filter(Boolean)
                                     .join(" ")
+                                
                                 return (
                                     <div
                                         className="previewLabel"
@@ -4449,7 +4478,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     background: trackBackground,
                                     position: "absolute",
                                     top: "50%",
-                                    left: isLabelCenter ? "calc(50% + 40px)" : `${previewBarOffsetX}px`,
+                                    left: isLabelCenter ? "calc(50% + 60px)" : `${previewBarOffsetX + 20}px`,
                                     transform: `translateY(-50%)${isLabelCenter ? " translateX(-50%)" : ""}`,
                                     overflow: "visible",
                                 }}
@@ -4742,7 +4771,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     background: "transparent",
                                     position: "absolute",
                                     top: "50%",
-                                    left: isLabelCenter ? "calc(50% + 40px)" : `${previewBarOffsetX}px`,
+                                    left: isLabelCenter ? "calc(50% + 60px)" : `${previewBarOffsetX + 20}px`,
                                     transform: `translateY(-50%)${isLabelCenter ? " translateX(-50%)" : ""}`,
                                     overflow: "visible",
                                 }}
