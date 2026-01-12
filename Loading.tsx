@@ -3,8 +3,13 @@
  * - Progress bar uses framer-motion (useSpring + motion.div)
  * - Fires onReady once when: all( minTimer, race(ready, timeout) )
  * - Ready = WindowLoad OR (WindowLoad + Fonts + Images [+Bg] + Quiet)
- * - No effect on Canvas/Thumbnail; Preview obeys Run in Preview
+ * - Canvas/Thumbnail: gate logic disabled; renders a static preview
+ * - Preview obeys Run in Preview
  * - Intrinsic sizing only (Framer handles layout/stacking)
+ * - Plugin insertion supports nested controls:
+ *   - `bar` (primary) and `label` objects (property controls)
+ *   - optional legacy `loadBar` object (back-compat)
+ *   - optional direct top-level overrides (e.g. `labelPosition`, `startAtLabel`)
  */
 
 /** @framerIntrinsicWidth  600 */
@@ -40,18 +45,19 @@ type LoadBarConfig = {
     animationStyle: AnimationStyle
     fillStyle: FillStyle
     lineWidth: number
+    lineCount: number
+    height: number
+    barColor: string
     perpetual: boolean
     perpetualGap: number
     barRadius: number
-    barColor: string
-    thickness: number
     trackColor: string
     showTrack: boolean
-    trackThickness: number
+    trackWidth: number
     circleGap: number
     startAtLabel: boolean
-    textFillStyle: TextFillStyle
     textFillColor: string
+    textFillStyle: TextFillStyle
     textPerpetual: boolean
     textReverse: boolean
     textDisplayMode: TextDisplayMode
@@ -88,6 +94,9 @@ type Props = {
     labelOutsideDirection?: "top" | "center" | "bottom"
     labelOffsetX?: number
     labelOffsetY?: number
+    // Plugin/instance control structure:
+    // - `bar` + `label` match the property controls groups below.
+    // - `loadBar` is supported for backward compatibility with older instances/plugins.
     loadBar?: Partial<LoadBarConfig>
     bar?: Partial<LoadBarConfig>
     label?: Partial<LoadBarConfig>
@@ -96,9 +105,10 @@ type Props = {
     barRadius?: number
     barColor?: string
     thickness?: number
+    height?: number
     trackColor?: string
     showTrack?: boolean
-    trackThickness?: number
+    trackWidth?: number
     circleGap?: number
     startAtLabel?: boolean
     finishDelay?: number
@@ -119,6 +129,36 @@ type Props = {
 
 }
 
+const computeBarTransformOrigin = (labelPosition: "left" | "center" | "right", startAtLabel: boolean): string => {
+    if (labelPosition === "center") return "50% 50%"
+    if (labelPosition === "right") return startAtLabel ? "100% 50%" : "0% 50%"
+    return startAtLabel ? "0% 50%" : "100% 50%"
+}
+
+const computeBarOriginX = (labelPosition: "left" | "center" | "right", startAtLabel: boolean): number => {
+    if (labelPosition === "center") return 0.5
+    const fillFromRight = (labelPosition === "right" && startAtLabel) || (labelPosition === "left" && !startAtLabel)
+    return fillFromRight ? 1 : 0
+}
+
+const computeRevealWindowStyle = (
+    progress: number,
+    originX: number,
+    period?: number
+): React.CSSProperties => {
+    const p = clampValue(progress)
+    const widthPct = `${p * 100}%`
+    if (originX === 0.5) {
+        return { left: "50%", width: widthPct, transform: "translateX(-50%)" }
+    }
+    if (originX === 1) {
+        return { right: 0, width: widthPct }
+    }
+    // For lines fill style, we want to ensure clean edges
+    // But since we're using percentage-based widths, we'll rely on the background-size alignment
+    return { left: 0, width: widthPct }
+}
+
 const SESSION_FLAG = "PageReadyGate:ready"
 
 const LABEL_OFFSET_LIMITS = {
@@ -129,19 +169,20 @@ const LABEL_OFFSET_LIMITS = {
 const DEFAULT_LOAD_BAR: LoadBarConfig = {
     animationStyle: "bar",
     fillStyle: "solid",
-    lineWidth: 2,
+    lineWidth: 20,
+    lineCount: 5,
+    height: 8,
+    barColor: "#854FFF",
     perpetual: false,
     perpetualGap: 0.5,
-    barRadius: 999,
-    barColor: "#854FFF",
-    thickness: 8,
+    barRadius: 4,
     trackColor: "rgba(0,0,0,.12)",
     showTrack: true,
-    trackThickness: 2,
+    trackWidth: 8,
     circleGap: 12,
     startAtLabel: false,
-    textFillStyle: "dynamic",
     textFillColor: "#854FFF",
+    textFillStyle: "dynamic",
     textPerpetual: false,
     textReverse: false,
     textDisplayMode: "textAndNumber",
@@ -179,7 +220,9 @@ export default function Loading(p: Props) {
     const isPreview = t === RenderTarget.preview
     const gatingOff = isCanvas || isThumb || (isPreview && !p.runInPreview)
 
-    const progress = useSpring(0, { stiffness: 140, damping: 22 })
+    const isDesignPreview = isCanvas || isThumb
+    const DESIGN_PREVIEW_PROGRESS = 0.42
+    const progress = useSpring(isDesignPreview ? DESIGN_PREVIEW_PROGRESS : 0, { stiffness: 140, damping: 22 })
     const labelRef = React.useRef<HTMLDivElement | null>(null)
     const rootRef = React.useRef<HTMLDivElement | null>(null)
     const gateStartRef = React.useRef<number | null>(null)
@@ -227,6 +270,21 @@ export default function Loading(p: Props) {
         loadBarOverrides.lineWidth,
         DEFAULT_LOAD_BAR.lineWidth
     )!
+    const lineCount = coalesce(
+        nestedBarOverrides.lineCount,
+        (nestedBarOverrides as any).lineGap,
+        loadBarOverrides.lineCount,
+        (loadBarOverrides as any).lineGap,
+        DEFAULT_LOAD_BAR.lineCount
+    )!
+    const height = coalesce(
+        p.thickness,
+        p.height,
+        nestedBarOverrides.height,
+        rootBarOverrides.height,
+        loadBarOverrides.height,
+        DEFAULT_LOAD_BAR.height
+    )!
     const perpetual = coalesce(
         nestedBarOverrides.perpetual,
         loadBarOverrides.perpetual,
@@ -249,12 +307,6 @@ export default function Loading(p: Props) {
         loadBarOverrides.barColor,
         DEFAULT_LOAD_BAR.barColor
     )!
-    const thickness = coalesce(
-        p.thickness,
-        nestedBarOverrides.thickness,
-        loadBarOverrides.thickness,
-        DEFAULT_LOAD_BAR.thickness
-    )!
     const trackColor = coalesce(
         p.trackColor,
         nestedBarOverrides.trackColor,
@@ -267,10 +319,10 @@ export default function Loading(p: Props) {
         loadBarOverrides.showTrack,
         DEFAULT_LOAD_BAR.showTrack
     )!
-    const trackThickness = coalesce(
-        nestedBarOverrides.trackThickness,
-        loadBarOverrides.trackThickness,
-        DEFAULT_LOAD_BAR.trackThickness
+    const trackWidth = coalesce(
+        nestedBarOverrides.trackWidth,
+        loadBarOverrides.trackWidth,
+        DEFAULT_LOAD_BAR.trackWidth
     )!
     const circleGap = coalesce(
         p.circleGap,
@@ -449,7 +501,8 @@ export default function Loading(p: Props) {
         animationStyle,
         fillStyle,
         lineWidth,
-        thickness,
+        lineCount,
+        height,
         perpetual,
         perpetualGap,
         barRadius,
@@ -457,7 +510,7 @@ export default function Loading(p: Props) {
         circleGap,
         trackColor,
         showTrack,
-        trackThickness,
+        trackWidth,
         startAtLabel,
         showLabel,
         labelText: labelTextRaw,
@@ -850,7 +903,7 @@ export default function Loading(p: Props) {
     const BAR_EXTRA_BOTTOM = 10
     const BAR_LABEL_GAP = 5
     const barContainerHeight = Math.max(
-        thickness,
+        height,
         Math.ceil(labelFontSize * 1.2 + 4)
     )
     const isBarAnimation = animationStyle === "bar"
@@ -908,7 +961,7 @@ export default function Loading(p: Props) {
                 return { width: 300, height: 300 }
             case "bar": {
                 const barHeightForIntrinsic = Math.max(
-                    thickness,
+                    height,
                     estimatedLabelHeight
                 )
                 const requiredHeight =
@@ -950,12 +1003,12 @@ export default function Loading(p: Props) {
         return transforms.length ? transforms.join(" ") : undefined
     })()
 
-    const insideBarPaddingX = Math.max(6, Math.round(thickness * 0.2))
-    const insideBarPaddingY = Math.max(4, Math.round(thickness * 0.15))
+    const insideBarPaddingX = Math.max(6, Math.round(height * 0.2))
+    const insideBarPaddingY = Math.max(4, Math.round(height * 0.15))
     const insideVerticalInset = Math.max(
         1,
         showBorder ? Math.round(borderWidth || 0) : 0,
-        Math.round(thickness * 0.05)
+        Math.round(height * 0.05)
     )
     const insidePaddingTop =
         labelOutsideDirection === "top" ? insideVerticalInset : insideBarPaddingY
@@ -1025,7 +1078,7 @@ export default function Loading(p: Props) {
             const verticalReach =
                 axisY === 0
                     ? 0
-                    : thickness / 2 + outsideSpacing + (labelBounds.height || 0) / 2
+                    : height / 2 + outsideSpacing + (labelBounds.height || 0) / 2
             outsideLabelStyle.left = centerX
             outsideLabelStyle.top = centerY
             const transforms = ["translate(-50%, -50%)"]
@@ -1207,21 +1260,11 @@ export default function Loading(p: Props) {
         }
     }, [progress, perpetual, animationStyle, perpetualProgress])
     
-    const progressValue = perpetual && (animationStyle === "circle" || animationStyle === "bar")
-        ? perpetualProgress
-        : currentProgress
-    const barTransformOrigin =
-        animationStyle === "bar"
-            ? labelPosition === "right"
-                ? startAtLabel
-                    ? "100% 50%"
-                    : "0% 50%"
-                : labelPosition === "left"
-                ? startAtLabel
-                    ? "0% 50%"
-                    : "100% 50%"
-                : "50% 50%" // Always center for center position
-            : "0% 50%"
+    const animatedProgressValue =
+        perpetual && (animationStyle === "circle" || animationStyle === "bar") ? perpetualProgress : currentProgress
+    const progressValue = isDesignPreview ? DESIGN_PREVIEW_PROGRESS : animatedProgressValue
+    const barTransformOrigin = animationStyle === "bar" ? computeBarTransformOrigin(labelPosition, startAtLabel) : "0% 50%"
+    const barOriginX = animationStyle === "bar" ? computeBarOriginX(labelPosition, startAtLabel) : 0
     const textFillProgress =
         animationStyle === "text" && textPerpetual && progressValue < 0.999
             ? textPerpetualProgress
@@ -1276,10 +1319,10 @@ export default function Loading(p: Props) {
             const maskStop = textReverse
                 ? Math.max(0, 100 - clipPercent)
                 : clipPercent
+            const fillColor = textFillColor || barColor
             const maskImage = textReverse
                 ? `linear-gradient(90deg, transparent ${maskStop}%, #000 ${maskStop}%)`
                 : `linear-gradient(90deg, #000 ${maskStop}%, transparent ${maskStop}%)`
-            const fillColor = textFillColor || barColor
             const directionDeg = textReverse ? 270 : 90
 
             if (isOneByOneFill) {
@@ -1395,23 +1438,17 @@ export default function Loading(p: Props) {
         if (animationStyle === "circle") {
             // Circle rendering - fill the available space accounting for stroke width
             const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
-            const strokeWidth = thickness
-            const trackStroke = showTrack ? trackThickness : 0
-            const maxStroke = Math.max(strokeWidth, trackStroke)
-            
-            // Calculate circle size to fill available space
-            // The SVG needs to be large enough to accommodate the circle + stroke width
-            // Stroke extends half width inward and half outward from the path
-            const strokePadding = maxStroke / 2 + 2 // Half stroke width on each side + 2px safety margin
-            const availableSize = Math.max(0, baseCircleSize - strokePadding * 2)
-            
-            // Reduce circle size to 60% of available space
-            const svgSize = availableSize * 0.6
-            
-            // The circle radius is half the available size (stroke will extend from this)
-            const circleRadius = Math.max(0, svgSize / 2)
-            
-            // The actual circle path size (for positioning calculations)
+            const progressStrokeWidth = Math.max(1, height)
+            const trackStrokeWidth = showTrack ? Math.max(0, trackWidth) : 0
+            const maxStrokeWidth = Math.max(
+                progressStrokeWidth,
+                trackStrokeWidth,
+                fillStyle === "lines" ? Math.max(0, lineWidth) : 0
+            )
+
+            // Keep SVG sized to the available content, and adjust radius so strokes fit.
+            const svgSize = baseCircleSize
+            const circleRadius = Math.max(0, (svgSize - maxStrokeWidth) / 2)
             const circleSize = svgSize
             
             const circumference = 2 * Math.PI * circleRadius
@@ -1429,7 +1466,7 @@ export default function Loading(p: Props) {
             const circleOffsetX = (contentWidth - svgSize) / 2
             const circleOffsetY = (contentHeight - svgSize) / 2
             const circlePaddingBase = Math.min(16, Math.max(6, circleSize * 0.08))
-            const insideInset = Math.max(circlePaddingBase, maxStroke * 0.5 + 6)
+            const insideInset = Math.max(circlePaddingBase, maxStrokeWidth * 0.5 + 6)
             const centerX = circleOffsetX + circleSize / 2
             const centerY = circleOffsetY + circleSize / 2
             const availableRadius = Math.max(0, circleRadius - insideInset)
@@ -1484,7 +1521,7 @@ export default function Loading(p: Props) {
                                 r={circleRadius}
                                 fill="none"
                                 stroke={trackColor}
-                                strokeWidth={trackThickness}
+                                strokeWidth={trackWidth}
                                 strokeDasharray={`${circumference - gapLength} ${gapLength}`}
                                 strokeDashoffset={gapOffset}
                                 strokeLinecap="round"
@@ -1498,7 +1535,7 @@ export default function Loading(p: Props) {
                                 r={circleRadius}
                                 fill="none"
                                 stroke={progressValue > 0 ? barColor : "transparent"}
-                                strokeWidth={strokeWidth}
+                                strokeWidth={progressStrokeWidth}
                                 strokeDasharray={`${Math.max(
                                     0,
                                     (circumference - gapLength) * progressValue
@@ -1511,15 +1548,19 @@ export default function Loading(p: Props) {
                             />
                         ) : (
                             <>
-                                {Array.from({ length: 20 }).map((_, i) => {
-                                    const shouldShow = i < Math.floor(progressValue * 20)
-                                    const angle = (i / 20) * 360 - 90
+                                {Array.from({
+                                    length: Math.max(3, Math.round(lineCount)),
+                                }).map((_, i, arr) => {
+                                    const segments = arr.length
+                                    const shouldShow =
+                                        i < Math.floor(progressValue * segments)
+                                    const angle = (i / segments) * 360
                                     const angleDelta = Math.abs(
                                         ((((angle - labelAngle) % 360) + 540) % 360) - 180
                                     )
                                     if (angleDelta <= gapDegrees / 2) return null
                                     const rad = (angle * Math.PI) / 180
-                                    const innerRadius = Math.max(0, circleRadius - thickness)
+                                    const innerRadius = Math.max(0, circleRadius - progressStrokeWidth)
                                     const x1 = svgSize / 2 + circleRadius * Math.cos(rad)
                                     const y1 = svgSize / 2 + circleRadius * Math.sin(rad)
                                     const x2 = svgSize / 2 + innerRadius * Math.cos(rad)
@@ -1539,7 +1580,7 @@ export default function Loading(p: Props) {
                                             x2={x2}
                                             y2={y2}
                                             stroke={strokeColor}
-                                            strokeWidth={thickness}
+	                                            strokeWidth={lineWidth}
                                             strokeLinecap="round"
                                             opacity={opacity}
                                         />
@@ -1622,7 +1663,7 @@ export default function Loading(p: Props) {
             let reserveLeft = 0
             let reserveRight = 0
             const labelOffsetXValue = labelOffsetX || 0
-            const minBarWidth = Math.max(40, thickness * 2)
+            const minBarWidth = Math.max(40, height * 2)
 
             // Outside labels: reserve space only when the X offset pushes the label away from the bar edge
             if (isOutsideLabel && measuredLabelWidth > 0) {
@@ -1770,9 +1811,10 @@ export default function Loading(p: Props) {
                 minBarWidth,
                 contentWidth - reserveLeft - reserveRight - barWidthAdjustment
             )
-            const barWidth = Math.max(minBarWidth, baseBarWidth + 140)
-            const extraWidth = Math.max(0, barWidth - baseBarWidth)
-            const barOffsetX = reserveLeft - extraWidth / 2
+            // Keep the bar within the available content width.
+            // `reserveLeft/right` and `barWidthAdjustment` already account for label bounds/offsets.
+            const barWidth = baseBarWidth
+            const barOffsetX = reserveLeft
             const barLeft = barOffsetX
             const barRight = barOffsetX + barWidth
             const barCenterX = barOffsetX + barWidth / 2
@@ -1901,7 +1943,7 @@ export default function Loading(p: Props) {
                                     top: "50%",
                                     left: `${barOffsetX}px`,
                                     width: `${barWidth}px`,
-                                    height: `${thickness}px`,
+                                    height: `${height}px`,
                                     background: trackBackground,
                                     borderRadius: barRadius,
                                     overflow: "hidden",
@@ -1913,17 +1955,18 @@ export default function Loading(p: Props) {
                                     transform: "translateY(-50%)",
                                 }}
                             >
-                                <motion.div
-                                    style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        background: barColor,
-                                        borderRadius: barRadius,
-                                        transformOrigin: barTransformOrigin,
-                                        scaleX: progressValue,
-                                    }}
-                                />
-                            </div>
+	                                <motion.div
+	                                    style={{
+	                                        width: "100%",
+	                                        height: "100%",
+	                                        background: barColor,
+	                                        borderRadius: barRadius,
+	                                        originX: barOriginX,
+	                                        originY: 0.5,
+	                                        scaleX: progressValue,
+	                                    }}
+	                                />
+	                            </div>
                             {labelInside && (
                                 <div style={insideOverlayStyle}>
                                     <div
@@ -1945,100 +1988,116 @@ export default function Loading(p: Props) {
                             )}
                         </div>
                     </div>
-                )
-            }
+                )}
 
-            const numLines = Math.floor(progressValue * 16)
-            const lineRadius = Math.max(0, Math.min(barRadius, thickness / 2))
-            const segmentLayerStyle: React.CSSProperties = {
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                gap: 2,
-                padding: 2,
-            }
+            // Calculate gap based on number of lines (lineCount) to fit within available width
+            const stripeWidthPx = Math.max(1, Math.round(lineWidth))
+            const totalLines = Math.max(1, Math.round(lineCount))
+            const totalLineWidth = stripeWidthPx * totalLines
+            const availableWidth = contentWidth || 600 // fallback width
+            const stripeGapPx =
+                totalLines <= 1
+                    ? stripeWidthPx
+                    : Math.max(
+                          1,
+                          Math.round(
+                              (availableWidth - totalLineWidth) /
+                                  (totalLines - 1)
+                          )
+                      )
+            const period = stripeWidthPx + stripeGapPx
+            const trackBackground = showTrack ? trackColor : "transparent"
+            const trackPattern = `repeating-linear-gradient(90deg, ${trackBackground} 0px, ${trackBackground} ${stripeWidthPx}px, transparent ${stripeWidthPx}px, transparent ${period}px)`
+            const fillPattern = `repeating-linear-gradient(90deg, ${barColor} 0px, ${barColor} ${stripeWidthPx}px, transparent ${stripeWidthPx}px, transparent ${period}px)`
 
             return (
                 <div style={barOuterWrapperStyle}>
-                        <div
-                            style={{
-                                width: `${contentWidth}px`,
-                                height: `${totalContainerHeight}px`,
-                                position: "relative",
-                                overflow: "visible",
-                            }}
-                        >
+                    <div
+                        style={{
+                            width: `${contentWidth}px`,
+                            height: `${totalContainerHeight}px`,
+                            position: "relative",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "flex-start",
+                            boxSizing: "border-box",
+                            overflow: "visible",
+                        }}
+                    >
                         <div
                             style={{
                                 position: "absolute",
                                 top: "50%",
                                 left: `${barOffsetX}px`,
                                 width: `${barWidth}px`,
-                                height: `${thickness}px`,
+                                height: `${height}px`,
                                 borderRadius: barRadius,
+                                overflow: "hidden",
                                 border:
                                     showBorder && borderWidth > 0
                                         ? `${borderWidth}px solid ${borderColor}`
                                         : "none",
-                                background: "transparent",
                                 boxSizing: "border-box",
-                                overflow: outsideLabelStyle ? "visible" : "hidden",
                                 transform: "translateY(-50%)",
+                                background: "transparent",
                             }}
                         >
-                        {showTrack && (
-                            <div style={segmentLayerStyle}>
-                                {Array.from({ length: 16 }).map((_, i) => (
-                                    <div
-                                        key={`track-${i}`}
-                                        style={{
-                                            flex: 1,
-                                            height: "100%",
-                                            borderRadius: lineRadius,
-                                            background: trackColor,
-                                        }}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                        <div style={segmentLayerStyle}>
-                            {Array.from({ length: 16 }).map((_, i) => {
-                                const shouldShow = i < numLines
-                                return (
-                                    <div
-                                        key={i}
-                                        style={{
-                                            flex: 1,
-                                            height: "100%",
-                                            borderRadius: lineRadius,
-                                            background: shouldShow ? barColor : "transparent",
-                                            opacity: shouldShow ? 1 : 0,
-                                            transition: "all 0.2s ease",
-                                        }}
-                                    />
-                                )
-                            })}
-                        </div>
-                    </div>
-                    {labelInside && (
-                        <div style={insideOverlayStyle}>
-                            <div
-                                ref={setLabelRef}
+                            {showTrack && (
+                                <div
+                                    style={{
+                                        position: "absolute",
+                                        inset: 0,
+                                        backgroundImage: trackPattern,
+                                        backgroundSize: `${period}px 100%`,
+                                        backgroundPosition: "left center",
+                                        borderRadius: barRadius,
+                                    }}
+                                />
+                            )}
+                            <motion.div
                                 style={{
-                                    ...baseLabelStyle,
-                                    whiteSpace: "nowrap",
-                                    transform: insideLabelOffset,
+                                    position: "absolute",
+                                    top: 0,
+                                    bottom: 0,
+                                    overflow: "hidden",
+                                    ...computeRevealWindowStyle(
+                                        progressValue,
+                                        barOriginX,
+                                        period
+                                    ),
                                 }}
                             >
+                                <div
+                                    style={{
+                                        position: "absolute",
+                                        inset: 0,
+                                        backgroundImage: fillPattern,
+                                        backgroundSize: `${period}px 100%`,
+                                        backgroundPosition: "left center",
+                                        borderRadius: barRadius,
+                                    }}
+                                />
+                            </motion.div>
+                        </div>
+                        {labelInside && (
+                            <div style={insideOverlayStyle}>
+                                <div
+                                    ref={setLabelRef}
+                                    style={{
+                                        ...baseLabelStyle,
+                                        whiteSpace: "nowrap",
+                                        transform: insideLabelOffset,
+                                    }}
+                                >
+                                    {initialLabelValue}
+                                </div>
+                            </div>
+                        )}
+                        {outsideLabelStyle && (
+                            <div ref={setLabelRef} style={outsideLabelStyle}>
                                 {initialLabelValue}
                             </div>
-                        </div>
-                    )}
-                    {isOutsideLabel && (
-                        <div ref={setLabelRef} style={outsideLabelStyle}>
-                            {initialLabelValue}
-                        </div>
-                    )}
+                        )}
                     </div>
                 </div>
             )
@@ -2455,19 +2514,16 @@ addPropertyControls(Loading, {
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text" ||
           (bar.textFillStyle ?? DEFAULT_LOAD_BAR.textFillStyle) === "static",
       },
-      lineWidth: {
+      height: {
         type: ControlType.Number,
-        title: "Line Width",
+        title: "Height",
         min: 1,
-        max: 20,
-        step: 0.5,
-        defaultValue: DEFAULT_LOAD_BAR.lineWidth,
+        max: 50,
+        step: 1,
+        defaultValue: DEFAULT_LOAD_BAR.height,
         displayStepper: true,
-        hidden: (bar: any = {}) => {
-          const style = bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
-          const fill = bar.fillStyle ?? DEFAULT_LOAD_BAR.fillStyle;
-          return style === "text" || fill !== "lines";
-        },
+        hidden: (bar: any = {}) =>
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
       },
       perpetual: {
         type: ControlType.Boolean,
@@ -2504,7 +2560,7 @@ addPropertyControls(Loading, {
                 type: ControlType.Number,
                 title: "Radius",
                 min: 0,
-                max: 999,
+                max: 20,
                 defaultValue: DEFAULT_LOAD_BAR.barRadius,
                 displayStepper: true,
                 hidden: (bar: any = {}) =>
@@ -2517,16 +2573,35 @@ addPropertyControls(Loading, {
                 hidden: (bar: any = {}) =>
                     (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
             },
-            thickness: {
+            lineWidth: {
                 type: ControlType.Number,
-                title: "Thickness",
+                title: "Width",
                 min: 1,
                 max: 50,
                 step: 1,
-                defaultValue: DEFAULT_LOAD_BAR.thickness,
+                defaultValue: DEFAULT_LOAD_BAR.lineWidth,
                 displayStepper: true,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
+                hidden: (bar: any = {}) => {
+                    const style =
+                        bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
+                    const fill = bar.fillStyle ?? DEFAULT_LOAD_BAR.fillStyle
+                    return style === "text" || fill !== "lines"
+                },
+            },
+            lineCount: {
+                type: ControlType.Number,
+                title: "Lines",
+                min: 3,
+                max: 60,
+                step: 1,
+                defaultValue: DEFAULT_LOAD_BAR.lineCount,
+                displayStepper: true,
+                hidden: (bar: any = {}) => {
+                    const style =
+                        bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
+                    const fill = bar.fillStyle ?? DEFAULT_LOAD_BAR.fillStyle
+                    return style === "text" || fill !== "lines"
+                },
             },
             showTrack: {
                 type: ControlType.Boolean,
@@ -2550,6 +2625,18 @@ addPropertyControls(Loading, {
                 type: ControlType.Color,
                 title: "Track",
                 defaultValue: DEFAULT_LOAD_BAR.trackColor,
+                hidden: (bar: any = {}) =>
+                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
+                    !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),
+            },
+            trackWidth: {
+                type: ControlType.Number,
+                title: "Width",
+                min: 1,
+                max: 50,
+                step: 1,
+                defaultValue: DEFAULT_LOAD_BAR.trackWidth,
+                displayStepper: true,
                 hidden: (bar: any = {}) =>
                     (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
                     !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),

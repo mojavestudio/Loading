@@ -19,6 +19,7 @@ import {
 } from "react"
 import { createPortal } from "react-dom"
 import { ArrowsOut, Barricade, ClockCounterClockwise, Plus, SpinnerGap, TextT } from "@phosphor-icons/react"
+import { motion } from "framer-motion"
 import "./App.css"
 
 type ThemeMode = "light" | "dark"
@@ -126,6 +127,313 @@ const themeTokenMap: Record<ThemeMode, ThemeTokens> = {
 const normalizeFontFamily = (value: string) => value.replace(/["']/g, "").replace(/\s+/g, " ").trim().toLowerCase()
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+// Font Dropdown component (with search + optional custom entry)
+const SearchableFontDropdown = ({
+    value,
+    onChange,
+    fontFamilyOptions,
+    usingProjectFont,
+    matchedFontFamily,
+    fontsByFamily,
+    updateLoadBar,
+    builder,
+}: {
+    value: string
+    onChange: (value: string) => void
+    fontFamilyOptions: string[]
+    usingProjectFont: boolean
+    matchedFontFamily: string | null
+    fontsByFamily: Map<string, ProjectFont[]>
+    updateLoadBar: (updates: Partial<LoadBarControls>) => void
+    builder: BuilderState
+}) => {
+    const [isOpen, setIsOpen] = useState(false)
+    const [searchTerm, setSearchTerm] = useState("")
+    const dropdownRef = useRef<HTMLDivElement>(null)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+
+    // Combine project fonts with common web fonts as fallbacks
+    const allFontOptions = useMemo(() => {
+        const commonFonts = [
+            'Inter',
+            'Roboto',
+            'Open Sans',
+            'Lato',
+            'Montserrat',
+            'Poppins',
+            'Playfair Display',
+            'Raleway',
+            'Oswald',
+            'Nunito',
+            'Merriweather',
+            'Ubuntu',
+            'Source Sans Pro',
+            'Helvetica Neue',
+            'Arial',
+            'Georgia',
+            'Times New Roman',
+            'Courier New',
+            'Verdana',
+            'Impact',
+            'Comic Sans MS'
+        ]
+        
+        const projectFonts = fontFamilyOptions
+        const combined = [...new Set([...projectFonts, ...commonFonts])]
+        return combined.sort((a, b) => a.localeCompare(b))
+    }, [fontFamilyOptions])
+
+    const filteredOptions = useMemo(() => {
+        if (!searchTerm.trim()) return allFontOptions
+        const needle = searchTerm.toLowerCase()
+        return allFontOptions.filter((font) =>
+            font.toLowerCase().includes(needle)
+        )
+    }, [allFontOptions, searchTerm])
+
+    const handleSelect = (selectedFont: string) => {
+        setIsOpen(false)
+
+        if (fontFamilyOptions.includes(selectedFont)) {
+            // Handle project font selection
+            const variants = fontsByFamily.get(selectedFont) ?? []
+            const fallbackVariant =
+                variants.find((variant) => (variant.style ?? "normal") === "normal") ??
+                variants[0]
+            const nextWeight = fallbackVariant?.weight ?? builder.controls.loadBar.labelFontWeight
+            const nextStyle = fallbackVariant?.style === "italic" ? "italic" : "normal"
+            
+            updateLoadBar({
+                labelFontFamily: selectedFont,
+                labelFontWeight: nextWeight ?? builder.controls.loadBar.labelFontWeight,
+                labelFont: {
+                    fontFamily: selectedFont,
+                    fontWeight: nextWeight ?? builder.controls.loadBar.labelFontWeight,
+                    fontStyle: nextStyle === "italic" ? "italic" : "normal",
+                },
+            })
+        } else {
+            // Handle custom font selection
+            onChange(selectedFont)
+        }
+    }
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value)
+    }
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+            e.preventDefault()
+            const typed = searchTerm.trim()
+            const exactMatch = allFontOptions.find((font) => normalizeFontFamily(font) === normalizeFontFamily(typed))
+            if (exactMatch) {
+                handleSelect(exactMatch)
+                return
+            }
+            if (typed) {
+                handleSelect(typed)
+                return
+            }
+        } else if (e.key === "Escape") {
+            setIsOpen(false)
+        }
+    }
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false)
+            }
+        }
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside)
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [isOpen])
+
+    useEffect(() => {
+        if (!isOpen) return
+        queueMicrotask(() => searchInputRef.current?.focus())
+    }, [isOpen])
+
+    useEffect(() => {
+        if (!isOpen) setSearchTerm("")
+    }, [value])
+
+    const buttonLabel = value?.trim() ? value.trim() : "Select a font…"
+    const customEntryVisible = (() => {
+        const typed = searchTerm.trim()
+        if (!typed) return false
+        return !allFontOptions.some((font) => normalizeFontFamily(font) === normalizeFontFamily(typed))
+    })()
+
+    return (
+        <div ref={dropdownRef} style={{ position: 'relative' }}>
+            <button
+                type="button"
+                onClick={() => setIsOpen((prev) => !prev)}
+                style={{
+                    width: "100%",
+                    height: "32px",
+                    padding: "8px 10px",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: "6px",
+                    background: "var(--input-background)",
+                    color: "var(--text-primary)",
+                    fontSize: "13px",
+                    outline: "none",
+                    fontFamily: "inherit",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    cursor: "pointer",
+                    boxSizing: "border-box",
+                }}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+            >
+                <span
+                    style={{
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        fontFamily: value || "inherit",
+                    }}
+                >
+                    {buttonLabel}
+                </span>
+                <span
+                    style={{
+                        flex: "0 0 auto",
+                        fontSize: 11,
+                        opacity: 0.7,
+                        transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                        transition: "transform 120ms ease",
+                    }}
+                >
+                    ▾
+                </span>
+            </button>
+            {isOpen && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        background: 'var(--surface-card)',
+                        border: '1px solid var(--border-soft)',
+                        borderRadius: '6px',
+                        marginTop: '4px',
+                        zIndex: 1000,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        overflow: "hidden",
+                    }}
+                >
+                    <div style={{ padding: 8, borderBottom: "1px solid var(--border-soft)" }}>
+                        <input
+                            ref={searchInputRef}
+                            type="text"
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            onKeyDown={handleSearchKeyDown}
+                            placeholder="Search fonts or type a custom name…"
+                            style={{
+                                width: "100%",
+                                height: 30,
+                                padding: "6px 10px",
+                                border: "1px solid var(--border-soft)",
+                                borderRadius: 6,
+                                background: "var(--input-background)",
+                                color: "var(--text-primary)",
+                                fontSize: 13,
+                                outline: "none",
+                                boxSizing: "border-box",
+                            }}
+                        />
+                    </div>
+                    <div style={{ maxHeight: 200, overflowY: "auto" }} role="listbox">
+                        {customEntryVisible && (
+                            <div
+                                key={`__custom__${searchTerm}`}
+                                onClick={() => handleSelect(searchTerm.trim())}
+                                style={{
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    color: "var(--text-primary)",
+                                    borderBottom: "1px solid var(--border-soft)",
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = "var(--ghost-bg)"
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = "transparent"
+                                }}
+                            >
+                                <span>Use “{searchTerm.trim()}”</span>
+                            </div>
+                        )}
+                        {filteredOptions.map((font) => {
+                            const isProjectFont = fontFamilyOptions.includes(font)
+                            return (
+                                <div
+                                    key={font}
+                                    onClick={() => handleSelect(font)}
+                                    style={{
+                                        padding: "8px 12px",
+                                        cursor: "pointer",
+                                        fontFamily: font,
+                                        fontSize: 13,
+                                        color: "var(--text-primary)",
+                                        borderBottom: "1px solid var(--border-soft)",
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: 10,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = "var(--ghost-bg)"
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = "transparent"
+                                    }}
+                                >
+                                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        {font}
+                                    </span>
+                                    {isProjectFont && (
+                                        <span
+                                            style={{
+                                                flex: "0 0 auto",
+                                                fontSize: 10,
+                                                padding: "2px 6px",
+                                                borderRadius: 3,
+                                                background: "var(--badge-bg)",
+                                                color: "var(--badge-text)",
+                                            }}
+                                        >
+                                            Project
+                                        </span>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
 
 // Custom NumberInput component with +/- buttons
 const NumberInput = ({
@@ -289,6 +597,8 @@ const VisualsSlider = ({
     max,
     step = 1,
     lineCount = 12,
+    label = "Width",
+    variant = "height",
 }: {
     value: number
     onChange: (value: number) => void
@@ -296,6 +606,8 @@ const VisualsSlider = ({
     max: number
     step?: number
     lineCount?: number
+    label?: string
+    variant?: "width" | "height"
 }) => {
     const range = max - min
     const normalizedValue = Math.max(0, Math.min(1, (value - min) / range))
@@ -305,14 +617,16 @@ const VisualsSlider = ({
         if (!container) return
         const rect = container.getBoundingClientRect()
         const percent = (event.clientX - rect.left) / rect.width
-        const newValue = min + percent * range
+        // Add a small buffer to make the last line selectable
+        const adjustedPercent = Math.min(1, percent + (0.5 / lineCount))
+        const newValue = min + adjustedPercent * range
         onChange(Math.max(min, Math.min(max, newValue)))
     }
     
     return (
-        <div className="visualsSlider">
+        <div className={`visualsSlider visualsSlider--${variant}`}>
             <div className="visualsSlider-lines" onPointerDown={handlePointerDown}>
-                <div className="visualsSlider-label">Width</div>
+                <div className="visualsSlider-label">{label}</div>
                 <div className="visualsSlider-content">
                     {Array.from({ length: lineCount }).map((_, index) => {
                         const linePosition = (index + 1) / lineCount
@@ -347,15 +661,15 @@ type LoadBarControls = {
     textPerpetual?: boolean
     textReverse?: boolean
     textDisplayMode?: "textOnly" | "textAndNumber" | "numberOnly"
-    lineWidth: number
+    lineCount: number
     perpetual: boolean
     perpetualGap: number
     barRadius: number
     barColor: string
-    thickness: number
+    height: number
     trackColor: string
     showTrack: boolean
-    trackThickness: number
+    trackWidth: number
     circleGap: number
     startAtLabel: boolean
     showLabel: boolean
@@ -374,6 +688,7 @@ type LoadBarControls = {
     showBorder: boolean
     borderWidth: number
     borderColor: string
+    lineWidth: number
 }
 
 type LoadingControls = {
@@ -722,19 +1037,18 @@ const XYPadControl = ({
 const DEFAULT_LOAD_BAR: LoadBarControls = {
     animationStyle: "bar",
     fillStyle: "solid",
-    lineWidth: 30,
+    height: 30,
+    barColor: "#854FFF",
     perpetual: false,
     perpetualGap: 0.5,
-    barRadius: 999,
-    barColor: "#854FFF",
-    thickness: 30,
+    barRadius: 4,
     trackColor: "rgba(0,0,0,.12)",
     showTrack: true,
-    trackThickness: 2,
+    trackWidth: 2,
     circleGap: 12,
     startAtLabel: false,
-    textFillStyle: "dynamic",
     textFillColor: "#854FFF",
+    textFillStyle: "dynamic",
     textPerpetual: false,
     textReverse: false,
     textDisplayMode: "textAndNumber",
@@ -752,7 +1066,9 @@ const DEFAULT_LOAD_BAR: LoadBarControls = {
     finishDelay: 0.12,
     showBorder: false,
     borderWidth: 2,
-    borderColor: "rgba(0,0,0,.24)",
+    borderColor: "rgba(0,0,0,.2)",
+    lineWidth: 30,
+    lineCount: 20,
 }
 
 const createDefaultControls = (): LoadingControls => ({
@@ -1841,14 +2157,15 @@ export function App() {
                     animationStyle: loadBar.animationStyle,
                     fillStyle: loadBar.fillStyle,
                     lineWidth: loadBar.lineWidth,
-                    thickness: loadBar.thickness,
+                    lineCount: loadBar.lineCount,
+                    height: loadBar.height,
                     perpetual: loadBar.perpetual,
                     perpetualGap: loadBar.perpetualGap,
                     barRadius: loadBar.barRadius,
                     barColor: loadBar.barColor,
                     trackColor: loadBar.trackColor,
                     showTrack: loadBar.showTrack,
-                    trackThickness: loadBar.trackThickness,
+                    trackWidth: loadBar.trackWidth,
                     circleGap: loadBar.circleGap,
                     startAtLabel: loadBar.startAtLabel,
                     finishDelay: loadBar.finishDelay,
@@ -2522,85 +2839,106 @@ export function App() {
                                     </div>
                                 </div>
                             )}
-                            {builder.controls.loadBar.animationStyle !== "text" && (
-                                <>
-                                    <div className="settingsRow" style={{ flexWrap: "nowrap", gap: 10 }}>
-                                        {builder.controls.loadBar.animationStyle === "bar" && (
-                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                <span style={{ marginLeft: 5 }}>Fill color</span>
-                                                <input
-                                                    type="color"
-                                                    value={builder.controls.loadBar.barColor}
-                                                    onChange={(event) => updateLoadBar({ barColor: event.target.value })}
-                                                />
-                                            </label>
-                                        )}
-                                        {builder.controls.loadBar.animationStyle === "bar" && (
-                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Height</span><span className="rangeValue">{builder.controls.loadBar.thickness.toFixed(0)}</span></span>
-                                                <input
-                                                    type="range"
+	                            {builder.controls.loadBar.animationStyle !== "text" && (
+	                                <>
+	                                    <div className="settingsRow" style={{ flexWrap: "nowrap", gap: 10 }}>
+	                                        {builder.controls.loadBar.animationStyle === "bar" && (
+	                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+	                                                <span style={{ marginLeft: 5 }}>Fill color</span>
+	                                                <input
+	                                                    type="color"
+	                                                    value={builder.controls.loadBar.barColor}
+	                                                    onChange={(event) => updateLoadBar({ barColor: event.target.value })}
+	                                                />
+	                                            </label>
+	                                        )}
+	                                        {builder.controls.loadBar.animationStyle === "circle" && (
+	                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+	                                                <span style={{ marginLeft: 5 }}>Fill color</span>
+	                                                <input
+	                                                    type="color"
+	                                                    value={builder.controls.loadBar.barColor}
+	                                                    onChange={(event) => updateLoadBar({ barColor: event.target.value })}
+	                                                />
+	                                            </label>
+	                                        )}
+	                                        {(builder.controls.loadBar.animationStyle === "bar" || builder.controls.loadBar.animationStyle === "circle") && (
+	                                            <div style={{ flex: "1 1 0", minWidth: 0 }}>
+	                                                <VisualsSlider
+                                                    value={builder.controls.loadBar.height}
+                                                    onChange={(value) => updateLoadBar({ height: value })}
                                                     min={1}
                                                     max={50}
                                                     step={1}
-                                                    value={builder.controls.loadBar.thickness}
-                                                    onChange={(event) => updateLoadBar({ thickness: Number(event.target.value) })}
+                                                    lineCount={14}
+                                                    label="Height"
+                                                    variant="height"
                                                 />
-                                            </label>
-                                        )}
-                                        {builder.controls.loadBar.animationStyle === "bar" ? (
-                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Radius</span><span className="rangeValue">{builder.controls.loadBar.barRadius.toFixed(0)}</span></span>
-                                                <input
-                                                    type="range"
+	                                            </div>
+	                                        )}
+	                                        {builder.controls.loadBar.animationStyle === "bar" ? (
+	                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+	                                                <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Radius</span><span className="rangeValue">{builder.controls.loadBar.barRadius.toFixed(0)}</span></span>
+	                                                <input
+	                                                    type="range"
                                                     min={0}
                                                     max={20}
                                                     value={builder.controls.loadBar.barRadius}
                                                     onChange={(event) => updateLoadBar({ barRadius: Number(event.target.value) })}
-                                                />
-                                            </label>
-                                        ) : (
-                                            <>
-                                                {builder.controls.loadBar.animationStyle === "circle" && (
-                                                    <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                        <span style={{ marginLeft: 5 }}>Fill color</span>
-                                                        <input
-                                                            type="color"
-                                                            value={builder.controls.loadBar.barColor}
-                                                            onChange={(event) => updateLoadBar({ barColor: event.target.value })}
-                                                        />
-                                                    </label>
-                                                )}
-                                                <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                    <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Gap</span><span className="rangeValue">{builder.controls.loadBar.circleGap.toFixed(0)}</span></span>
-                                                    <input
-                                                        type="range"
-                                                        min={0}
-                                                        max={90}
-                                                        step={1}
-                                                        value={builder.controls.loadBar.circleGap}
-                                                        onChange={(event) => updateLoadBar({ circleGap: Number(event.target.value) })}
-                                                    />
-                                                </label>
-                                                {(builder.controls.loadBar.animationStyle === "circle" || (builder.controls.loadBar.animationStyle === "bar" && builder.controls.loadBar.fillStyle === "lines")) && (
-                                                    <div style={{ flex: "1 1 0", minWidth: 0 }}>
+	                                                />
+	                                            </label>
+	                                        ) : (
+	                                            <>
+	                                                <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+	                                                    <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Gap</span><span className="rangeValue">{builder.controls.loadBar.circleGap.toFixed(0)}</span></span>
+	                                                    <input
+	                                                        type="range"
+	                                                        min={0}
+	                                                        max={90}
+	                                                        step={1}
+	                                                        value={builder.controls.loadBar.circleGap}
+	                                                        onChange={(event) => updateLoadBar({ circleGap: Number(event.target.value) })}
+	                                                    />
+	                                                </label>
+	                                            </>
+	                                        )}
+	                                        {(builder.controls.loadBar.animationStyle === "bar" ||
+	                                            builder.controls.loadBar.animationStyle === "circle") &&
+	                                            builder.controls.loadBar.fillStyle === "lines" && (
+	                                                <>
+	                                                    <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+	                                                        <span style={{ marginLeft: 5 }}>Lines</span>
+	                                                        <NumberInput
+	                                                            value={builder.controls.loadBar.lineCount}
+	                                                            onChange={(value) =>
+	                                                                updateLoadBar({ lineCount: value })
+	                                                            }
+	                                                            min={3}
+	                                                            max={60}
+	                                                            step={1}
+	                                                        />
+	                                                    </label>
+	                                                    <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
                                                         <VisualsSlider
                                                             value={builder.controls.loadBar.lineWidth}
-                                                            onChange={(value) => updateLoadBar({ lineWidth: value })}
+                                                            onChange={(value) =>
+                                                                updateLoadBar({ lineWidth: value })
+                                                            }
                                                             min={1}
-                                                            max={15}
+                                                            max={50}
                                                             step={1}
-                                                            lineCount={14}
+                                                            lineCount={16}
+                                                            label="Width"
+                                                            variant="width"
                                                         />
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                    {showTrackBorderControls && (
-                                        <div className="settingsRow settingsRow--trackBorderGroup">
-                                            <div className="trackBorder-row">
-                                                <div
+                                                    </label>
+	                                                </>
+	                                            )}
+	                                    </div>
+	                                    {showTrackBorderControls && (
+	                                        <div className="settingsRow settingsRow--trackBorderGroup">
+	                                            <div className="trackBorder-row">
+	                                                <div
                                                     className={`trackBorderDrawer ${
                                                         builder.controls.loadBar.showTrack ? "is-active" : ""
                                                     }`}
@@ -2626,12 +2964,14 @@ export function App() {
                                                     </label>
                                                         <div className="trackBorder-field trackBorder-slider">
                                                             <VisualsSlider
-                                                                value={builder.controls.loadBar.trackThickness}
-                                                                onChange={(value) => updateLoadBar({ trackThickness: value })}
+                                                                value={builder.controls.loadBar.trackWidth}
+                                                                onChange={(value) => updateLoadBar({ trackWidth: value })}
                                                                 min={1}
                                                                 max={50}
                                                                 step={0.5}
                                                                 lineCount={16}
+                                                                label="Width"
+                                                                variant="width"
                                                             />
                                                         </div>
                                                     </div>
@@ -2670,6 +3010,8 @@ export function App() {
                                                                 max={12}
                                                                 step={1}
                                                                 lineCount={12}
+                                                                label="Width"
+                                                                variant="width"
                                                             />
                                                         </div>
                                                     </div>
@@ -2723,63 +3065,35 @@ export function App() {
                                         </label>
                                         <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 5 }}>Font</span>
-	                                            {usingProjectFont ? (
-	                                                <select
-	                                                    value={matchedFontFamily ?? fontFamilyOptions[0] ?? ""}
-	                                                    style={{ height: 32, padding: "8px 10px" }}
-	                                                    onChange={(event) => {
-	                                                        const nextValue = event.target.value
-	                                                        const variants = fontsByFamily.get(nextValue) ?? []
-                                                        const fallbackVariant =
-                                                            variants.find((variant) => (variant.style ?? "normal") === "normal") ??
-                                                            variants[0]
-                                                        const nextWeight =
-                                                            fallbackVariant?.weight ?? builder.controls.loadBar.labelFontWeight
-                                                        const nextStyle = fallbackVariant?.style === "italic" ? "italic" : "normal"
-                                                        updateLoadBar({
-                                                            labelFontFamily: nextValue,
-                                                            labelFontWeight: nextWeight ?? builder.controls.loadBar.labelFontWeight,
-                                                            labelFont: {
-                                                                fontFamily: nextValue,
-                                                                fontWeight: nextWeight ?? builder.controls.loadBar.labelFontWeight,
-                                                                fontStyle: nextStyle === "italic" ? "italic" : "normal",
-                                                            },
-                                                        })
-                                                    }}
-                                                >
-                                                    {fontFamilyOptions.map((family) => (
-                                                        <option key={family} value={family}>
-                                                            {family}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            ) : (
-                                                <input
-                                                    type="text"
-                                                    value={builder.controls.loadBar.labelFontFamily}
-                                                    onChange={(event) =>
-                                                        updateLoadBar({
-                                                            labelFontFamily: event.target.value,
-                                                            labelFont: {
-                                                                ...(builder.controls.loadBar.labelFont || {}),
-                                                                fontFamily: event.target.value,
-                                                            },
-                                                        })
-                                                    }
-                                                    placeholder='Inter, "Helvetica Neue", sans-serif'
-                                                />
-                                            )}
+                                            <SearchableFontDropdown
+                                                value={builder.controls.loadBar.labelFontFamily}
+                                                onChange={(value) =>
+                                                    updateLoadBar({
+                                                        labelFontFamily: value,
+                                                        labelFont: {
+                                                            ...(builder.controls.loadBar.labelFont || {}),
+                                                            fontFamily: value,
+                                                        },
+                                                    })
+                                                }
+                                                fontFamilyOptions={fontFamilyOptions}
+                                                usingProjectFont={usingProjectFont}
+                                                matchedFontFamily={matchedFontFamily}
+                                                fontsByFamily={fontsByFamily}
+                                                updateLoadBar={updateLoadBar}
+                                                builder={builder}
+                                            />
                                         </label>
                                         <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 5 }}>Font size</span>
-	                                            <NumberInput
-	                                                value={builder.controls.loadBar.labelFontSize}
-	                                                onChange={(value) => updateLoadBar({ labelFontSize: value })}
-	                                                style={{ height: 32 }}
-	                                                min={6}
-	                                                max={72}
-	                                                step={0.5}
-	                                            />
+                                            <NumberInput
+                                                value={builder.controls.loadBar.labelFontSize}
+                                                onChange={(value) => updateLoadBar({ labelFontSize: value })}
+                                                style={{ height: 32 }}
+                                                min={6}
+                                                max={72}
+                                                step={0.5}
+                                            />
                                         </label>
                                         <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 0, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Weight</span>{!usingProjectFont && <span className="rangeValue" style={{ marginRight: 0 }}>{Number(builder.controls.loadBar.labelFontWeight) || 400}</span>}</span>
@@ -3787,7 +4101,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     const barLabelVerticalReserve =
         labelOutside && loadBar.animationStyle === "bar" ? LABEL_VERTICAL_OFFSET * 2 : 0
     const barHeight = loadBar.animationStyle === "bar"
-        ? loadBar.thickness +
+        ? loadBar.height +
           (loadBar.showBorder ? loadBar.borderWidth * 2 : 0) +
           (loadBar.fillStyle === "lines" ? 4 : 0) // 2px padding top + 2px bottom
         : 0
@@ -3820,7 +4134,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     // Calculate inset based on thickness for proper inside/outside positioning
     // For inside labels, need to account for full thickness to avoid overlap
     // For outside labels, need spacing from the edge
-    const barThickness = loadBar.animationStyle === "bar" ? loadBar.thickness : 0
+    const barThickness = loadBar.animationStyle === "bar" ? loadBar.height : 0
     const borderWidth = loadBar.showBorder ? loadBar.borderWidth : 0
     const totalBarHeight = barThickness + (borderWidth * 2)
     const insideBarInset = Math.max(6, totalBarHeight * 0.5 + 4) // Half the bar height plus padding for inside
@@ -4031,8 +4345,8 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             const baseTextColor = loadBar.showTrack 
                 ? (loadBar.trackColor || loadBar.labelColor || (baseLabelStyle.color as string) || "rgba(255,255,255,0.25)")
                 : "transparent"
-            // Use labelColor for fill color (prioritize labelColor over textFillColor)
             const fillColor = loadBar.labelColor || loadBar.textFillColor || loadBar.barColor
+            // Use labelColor for fill color (prioritize labelColor over textFillColor)
             
             // For dynamic: ultra-smooth progressive fill with very wide, gradual transition
             // Use a much wider transition zone (30%) for ultra-smooth fill
@@ -4168,19 +4482,26 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             )
         }
 
-	        if (loadBar.animationStyle === "circle") {
-	            const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
-	            // Reduce circle size (live preview) by an additional 20%
-	            const circleSize = baseCircleSize * 0.6 * 0.6 * 0.8
-	            const strokeWidth = loadBar.lineWidth
-	            const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
-	            const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
-            const circumference = 2 * Math.PI * circleRadius
-            const circleOffsetX = (contentWidth - circleSize) / 2 + 60 // Move 60px to the right
-            const circleOffsetY = (contentHeight - circleSize) / 2
-            const maxStroke = Math.max(strokeWidth, trackStroke)
-            const centerX = circleOffsetX + circleSize / 2
-            const centerY = circleOffsetY + circleSize / 2
+		        if (loadBar.animationStyle === "circle") {
+		            const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
+		            // Reduce circle size (live preview) by an additional 20%
+		            const circleSize = baseCircleSize * 0.6 * 0.6 * 0.8
+		            const progressStrokeWidth = Math.max(1, loadBar.height)
+		            const trackStroke = loadBar.showTrack ? loadBar.trackWidth : 0
+		            const maxStrokeWidth = Math.max(
+		                progressStrokeWidth,
+		                trackStroke,
+		                loadBar.fillStyle === "lines" ? loadBar.lineWidth : 0
+		            )
+		            const circleRadius = Math.max(
+		                0,
+		                circleSize / 2 - maxStrokeWidth * 0.5
+		            )
+	            const circumference = 2 * Math.PI * circleRadius
+	            const circleOffsetX = (contentWidth - circleSize) / 2 + 60 // Move 60px to the right
+	            const circleOffsetY = (contentHeight - circleSize) / 2
+	            const centerX = circleOffsetX + circleSize / 2
+	            const centerY = circleOffsetY + circleSize / 2
             
             // Circle label behavior is intentionally separate from bar logic:
             // - center/center: inside, dead center
@@ -4235,15 +4556,15 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         {loadBar.fillStyle === "solid" ? (
                             <circle
                                 cx={circleSize / 2}
-                                cy={circleSize / 2}
-                                r={circleRadius}
-                                fill="none"
-                                stroke={effectiveProgress > 0 ? loadBar.barColor : "transparent"}
-                                strokeWidth={strokeWidth}
-                                {...(hasGap ? {
-                                    strokeDasharray: `${Math.max(
-                                        0,
-                                        (circumference - gapLength) * effectiveProgress
+	                                cy={circleSize / 2}
+	                                r={circleRadius}
+	                                fill="none"
+	                                stroke={effectiveProgress > 0 ? loadBar.barColor : "transparent"}
+	                                strokeWidth={progressStrokeWidth}
+	                                {...(hasGap ? {
+	                                    strokeDasharray: `${Math.max(
+	                                        0,
+	                                        (circumference - gapLength) * effectiveProgress
                                     )} ${Math.max(
                                         0,
                                         (circumference - gapLength) * (1 - effectiveProgress) + gapLength
@@ -4254,20 +4575,24 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 })}
                                 strokeLinecap={effectiveProgress <= 0.001 ? "butt" : "round"}
                             />
-                        ) : (
-                            <>
-                                {Array.from({ length: 20 }).map((_, i) => {
-                                    const shouldShow = i < Math.floor(effectiveProgress * 20)
-                                    const angle = (i / 20) * 360 - 90
-                                    const angleDelta = Math.abs(
-                                        ((((angle - labelAngle) % 360) + 540) % 360) - 180
-                                    )
-                                    if (hasGap && angleDelta <= gapDegrees / 2) return null
-                                    const rad = (angle * Math.PI) / 180
-                                    const innerRadius = Math.max(0, circleRadius - loadBar.lineWidth)
-                                    const x1 = circleSize / 2 + circleRadius * Math.cos(rad)
-                                    const y1 = circleSize / 2 + circleRadius * Math.sin(rad)
-                                    const x2 = circleSize / 2 + innerRadius * Math.cos(rad)
+	                        ) : (
+	                            <>
+	                                {Array.from({
+	                                    length: Math.max(3, Math.round(loadBar.lineCount)),
+	                                }).map((_, i, arr) => {
+	                                    const segments = arr.length
+	                                    const shouldShow =
+	                                        i < Math.floor(effectiveProgress * segments)
+	                                    const angle = (i / segments) * 360
+		                                    const angleDelta = Math.abs(
+		                                        ((((angle - labelAngle) % 360) + 540) % 360) - 180
+		                                    )
+		                                    if (hasGap && angleDelta <= gapDegrees / 2) return null
+	                                    const rad = (angle * Math.PI) / 180
+	                                    const innerRadius = Math.max(0, circleRadius - progressStrokeWidth)
+	                                    const x1 = circleSize / 2 + circleRadius * Math.cos(rad)
+	                                    const y1 = circleSize / 2 + circleRadius * Math.sin(rad)
+	                                    const x2 = circleSize / 2 + innerRadius * Math.cos(rad)
                                     const y2 = circleSize / 2 + innerRadius * Math.sin(rad)
                                     const strokeColor = shouldShow
                                         ? loadBar.barColor
@@ -4351,14 +4676,14 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 let lx: number
                                 let ly: number
                                 
-                                if (isEdge) {
-                                    // Edge positions (3, 6, 9, 12 o'clock): place label center on circle edge
-                                    // Use outer radius (circle radius + half of max stroke width)
-                                    const outerRadius = circleRadius + maxStroke / 2
-                                    const circleCenterX = circleSize / 2
-                                    const circleCenterY = circleSize / 2
-                                    
-                                    lx = circleCenterX + axisX * outerRadius
+	                                if (isEdge) {
+	                                    // Edge positions (3, 6, 9, 12 o'clock): place label center on circle edge
+	                                    // Use outer radius (circle radius + half of max stroke width)
+	                                    const outerRadius = circleRadius + maxStrokeWidth / 2
+	                                    const circleCenterX = circleSize / 2
+	                                    const circleCenterY = circleSize / 2
+	                                    
+	                                    lx = circleCenterX + axisX * outerRadius
                                     ly = circleCenterY + axisY * outerRadius
                                 } else if (isCorner) {
                                     // Corner positions: place label at the 4 corners of the bounding box
@@ -4425,12 +4750,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                     : loadBar.labelOutsideDirection === "bottom"
                     ? "flex-end"
                     : "center"
-            const insidePaddingX = Math.max(6, Math.round(loadBar.thickness * 0.2))
-            const insideBasePaddingY = Math.max(4, Math.round(loadBar.thickness * 0.15))
+            const insidePaddingX = Math.max(6, Math.round(loadBar.height * 0.2))
+            const insideBasePaddingY = Math.max(4, Math.round(loadBar.height * 0.15))
             const insideVerticalInset = Math.max(
                 1,
                 loadBar.showBorder ? Math.round(loadBar.borderWidth || 0) : 0,
-                Math.round(loadBar.thickness * 0.05)
+                Math.round(loadBar.height * 0.05)
             )
             const insideHorizontalInset = 5
             const insidePaddingLeft =
@@ -4459,7 +4784,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
 
             let reserveLeft = 0
             let reserveRight = 0
-            const minBarWidth = Math.max(40, loadBar.thickness * 2)
+            const minBarWidth = Math.max(40, loadBar.height * 2)
             const labelOffsetXValue = labelOffsetX || 0
             const offsetForBounds = labelOffsetXValue
             // Run reserve loop for all outside labels (matches GitHub/corner behavior)
@@ -4698,7 +5023,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 className="previewBar previewBar--matchButton"
                                 style={{
                                     width: `${previewBarWidth}px`,
-                                    height: `${loadBar.thickness}px`,
+                                    height: `${loadBar.height}px`,
                                     borderRadius: loadBar.barRadius,
                                     border: loadBar.showBorder ? `${loadBar.borderWidth}px solid ${loadBar.borderColor}` : "none",
                                     background: trackBackground,
@@ -4709,14 +5034,30 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     overflow: "visible",
                                 }}
                             >
-                            <div
-                                className="previewFill"
-                                style={{
-                                    width: `${progress}%`,
-                                    borderRadius: loadBar.barRadius,
-                                    background: loadBar.barColor,
-                                }}
-                            />
+                            {(() => {
+                                const barTransformOrigin =
+                                    loadBar.labelPosition === "right"
+                                        ? loadBar.startAtLabel
+                                            ? "100% 50%"
+                                            : "0% 50%"
+                                        : loadBar.labelPosition === "left"
+                                          ? loadBar.startAtLabel
+                                                ? "0% 50%"
+                                                : "100% 50%"
+                                          : "50% 50%"
+                                return (
+                                    <div
+                                        className="previewFill"
+                                        style={{
+                                            width: "100%",
+                                            borderRadius: loadBar.barRadius,
+                                            background: loadBar.barColor,
+                                            transformOrigin: barTransformOrigin,
+                                            transform: `scaleX(${progressValue})`,
+                                        }}
+                                    />
+                                )
+                            })()}
                             {loadBar.showLabel && label && !isOutside && (
                                 <div
                                     style={{
@@ -4778,20 +5119,22 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             )
         }
 
-        if (loadBar.fillStyle === "lines") {
-            const containerPadding = 5
-            const windowWidth = Math.max(40, width - containerPadding * 2)
-            const barContainerHeight = Math.max(
-                loadBar.thickness,
-                Math.ceil((loadBar.labelFontSize || 12) * 1.2 + 4)
-            )
+	        if (loadBar.fillStyle === "lines") {
+	            const containerPadding = 5
+	            // Match the solid preview sizing so bar length stays consistent across fill styles.
+	            const windowWidth = 380
+	            const barContainerHeight = Math.max(
+	                loadBar.height,
+	                Math.ceil((loadBar.labelFontSize || 12) * 1.2 + 4)
+	            )
             const measuredLabelWidth = labelTextWidth || labelTextRef.current?.offsetWidth || 0
             const measuredLabelHeight = labelTextRef.current?.offsetHeight || 0
             const labelHeightForLayout = measuredLabelHeight || estimatedLabelHeight
             const containerContentHeight = Math.max(barContainerHeight, labelHeightForLayout)
             // Match component geometry: 30px above/below the centered baseline
             const totalContainerHeight = containerContentHeight + LABEL_VERTICAL_OFFSET * 2
-            const windowHeight = Math.max(30, totalContainerHeight)
+	            // Match the solid preview sizing so vertical layout stays consistent.
+	            const windowHeight = 150
             const baseGap = 5
             const isOutside = effectiveLabelPlacement === "outside"
             const isLabelLeft = loadBar.labelPosition === "left"
@@ -4805,12 +5148,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                     : loadBar.labelOutsideDirection === "bottom"
                     ? "flex-end"
                     : "center"
-            const insidePaddingX = Math.max(6, Math.round(loadBar.thickness * 0.2))
-            const insideBasePaddingY = Math.max(4, Math.round(loadBar.thickness * 0.15))
+            const insidePaddingX = Math.max(6, Math.round(loadBar.height * 0.2))
+            const insideBasePaddingY = Math.max(4, Math.round(loadBar.height * 0.15))
             const insideVerticalInset = Math.max(
                 1,
                 loadBar.showBorder ? Math.round(loadBar.borderWidth || 0) : 0,
-                Math.round(loadBar.thickness * 0.05)
+                Math.round(loadBar.height * 0.05)
             )
             const insideHorizontalInset = 5
             const insidePaddingLeft =
@@ -4838,7 +5181,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             const insideLabelTransform = insideTransforms.length ? insideTransforms.join(" ") : undefined
             let reserveLeft = 0
             let reserveRight = 0
-            const minBarWidth = Math.max(40, loadBar.thickness * 2)
+            const minBarWidth = Math.max(40, loadBar.height * 2)
             const labelOffsetXValue = labelOffsetX || 0
             if (isOutside && measuredLabelWidth > 0) {
                 for (let i = 0; i < 4; i++) {
@@ -4929,14 +5272,46 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             // Therefore: bar center from top of outer container = barExtraTop + (windowHeight - barExtraTop - barExtraBottom) / 2
             const innerDivHeight = windowHeight - barExtraTop - barExtraBottom
             const barCenterY = barExtraTop + innerDivHeight / 2
-            const numLines = Math.floor(progressValue * 20)
-            const lineRadius = Math.max(0, Math.min(loadBar.barRadius, loadBar.thickness / 2))
-            const segmentLayerStyle: CSSProperties = {
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                gap: 2,
-                padding: 2,
+            const barOriginX = (() => {
+                if (loadBar.labelPosition === "center") return 0.5
+                const fillFromRight =
+                    (loadBar.labelPosition === "right" && loadBar.startAtLabel) ||
+                    (loadBar.labelPosition === "left" && !loadBar.startAtLabel)
+                return fillFromRight ? 1 : 0
+            })()
+	            // Calculate gap based on number of lines (lineCount) to fit within available width
+	            const stripeWidthPx = Math.max(1, Math.round(loadBar.lineWidth))
+	            const totalLines = Math.max(1, Math.round(loadBar.lineCount))
+	            const totalLineWidth = stripeWidthPx * totalLines
+	            const availableWidth = windowWidth || 600 // fallback width
+	            const stripeGapPx =
+	                totalLines <= 1
+	                    ? stripeWidthPx
+	                    : Math.max(
+	                          1,
+	                          Math.round(
+	                              (availableWidth - totalLineWidth) /
+	                                  (totalLines - 1)
+	                          )
+	                      )
+	            const period = stripeWidthPx + stripeGapPx
+	            const trackBackground = loadBar.showTrack ? loadBar.trackColor : "transparent"
+	            const trackPattern = `repeating-linear-gradient(90deg, ${trackBackground} 0px, ${trackBackground} ${stripeWidthPx}px, transparent ${stripeWidthPx}px, transparent ${period}px)`
+	            const fillPattern = `repeating-linear-gradient(90deg, ${loadBar.barColor} 0px, ${loadBar.barColor} ${stripeWidthPx}px, transparent ${stripeWidthPx}px, transparent ${period}px)`
+            const computeRevealWindowStyle = (progress: number, originX: number): CSSProperties => {
+                const clamped = Math.max(0, Math.min(1, progress))
+                const widthPct = `${clamped * 100}%`
+                if (originX === 0.5) {
+                    return {
+                        left: "50%",
+                        width: widthPct,
+                        transform: "translateX(-50%)",
+                    }
+                }
+                if (originX === 1) {
+                    return { right: 0, width: widthPct }
+                }
+                return { left: 0, width: widthPct }
             }
 
 	            // Calculate vertical offset for bar positioning.
@@ -4991,7 +5366,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 className="previewBar previewBar--matchButton"
                                 style={{
                                     width: `${previewBarWidth}px`,
-                                    height: `${loadBar.thickness}px`,
+                                    height: `${loadBar.height}px`,
                                     borderRadius: loadBar.barRadius,
                                     border: loadBar.showBorder ? `${loadBar.borderWidth}px solid ${loadBar.borderColor}` : "none",
                                     background: "transparent",
@@ -5002,39 +5377,45 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     overflow: "visible",
                                 }}
                             >
-                            {loadBar.showTrack && (
-                                <div style={segmentLayerStyle}>
-                                    {Array.from({ length: 20 }).map((_, idx) => (
+                                <div
+                                    style={{
+                                        position: "absolute",
+                                        inset: 0,
+                                        overflow: "hidden",
+                                        borderRadius: loadBar.barRadius,
+                                    }}
+                                >
+                                    {loadBar.showTrack && (
                                         <div
-                                            key={`track-${idx}`}
                                             style={{
-                                                flex: 1,
-                                                height: "100%",
-                                                borderRadius: lineRadius,
-                                                background: loadBar.trackColor,
+                                                position: "absolute",
+                                                inset: 0,
+                                                backgroundImage: trackPattern,
+                                                backgroundSize: `${period}px 100%`,
+                                                backgroundPosition: "left center",
                                             }}
                                         />
-                                    ))}
+                                    )}
+                                    <motion.div
+                                        style={{
+                                            position: "absolute",
+                                            top: 0,
+                                            bottom: 0,
+                                            overflow: "hidden",
+                                            ...computeRevealWindowStyle(progressValue, barOriginX),
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                position: "absolute",
+                                                inset: 0,
+                                                backgroundImage: fillPattern,
+                                                backgroundSize: `${period}px 100%`,
+                                                backgroundPosition: "left center",
+                                            }}
+                                        />
+                                    </motion.div>
                                 </div>
-                            )}
-                            <div style={segmentLayerStyle}>
-                                {Array.from({ length: 20 }).map((_, idx) => {
-                                    const shouldShow = idx < numLines
-                                    return (
-                                        <div
-                                            key={idx}
-                                            style={{
-                                                flex: 1,
-                                                height: "100%",
-                                                borderRadius: lineRadius,
-                                                background: shouldShow ? loadBar.barColor : "transparent",
-                                                opacity: shouldShow ? 1 : 0,
-                                                transition: "all 0.2s ease",
-                                            }}
-                                        />
-                                    )
-                                })}
-                            </div>
                             {loadBar.showLabel && label && !isOutside && (
                                 <div
                                     style={{

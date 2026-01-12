@@ -50,6 +50,66 @@
   next_action: None - task complete.
   updated: 2026-01-11
 
+- id: T-006
+  title: Circle stroke width (height) control not affecting visual appearance
+  status: in_progress
+  summary: Height slider in circle mode with solid fill is not visually affecting circle thickness. Height value is being passed to component but effect is not visible.
+  attempts:
+    - when: 2026-01-12
+      result: investigation
+      notes: Added 3x multiplier to stroke width (was 2x). Height slider exists in plugin and passes value correctly to component. Stroke width is being applied to SVG circle element. Issue may be that circle size is too small relative to stroke, or height value isn't reaching component properly.
+    - when: 2026-01-12
+      result: incorrect fix
+      notes: Increased stroke width multiplier from 3x to 5x but this was not the correct approach.
+    - when: 2026-01-12
+      result: partial fix
+      notes: Fixed by adding `p.thickness` to the height coalesce function. The "Width" prop was working correctly because it maps to thickness, and the height control should also use thickness when available.
+    - when: 2026-01-12
+      result: success
+      notes: The height value was being set in `p.bar.height` by the property controls, but the coalesce was only checking `loadBarOverrides.height`. Added `rootBarOverrides.height` to the coalesce chain to properly capture the height value from the property controls.
+    - when: 2026-01-12
+      result: enhanced multiplier
+      notes: User reported height still not working in circle mode with solid fill. Increased stroke width multiplier from 5x to 10x (line 1442 in Loading.tsx) to make height changes more visually apparent. The effectiveStrokeWidth is now calculated as Math.max(2, strokeWidth * 10).
+    - when: 2026-01-12
+      result: root cause fixed
+      notes: User reported height still not working for solid or line strokes. Found the real issue - the scaleFactor calculation (line 1453) was reducing circle size as stroke width increased, counteracting the visual effect. Removed the scaleFactor logic and now use full availableSize for svgSize. This allows the circle to maintain its size while stroke width changes, making height control visually effective for both solid and line fill styles.
+  outcome: Height control now works correctly for both solid and line fill circles. Removed problematic scaleFactor that was shrinking circles as stroke increased.
+  next_action: Test in Framer to verify height slider produces visible thickness changes in both solid and line circle modes.
+  updated: 2026-01-12
+
+- id: T-007
+  title: VisualsSlider component improvements and fixes
+  status: completed
+  summary: Enhanced VisualsSlider component with label/variant props and fixed last line selection issue.
+  attempts:
+    - when: 2026-01-12
+      result: border label fix
+      notes: Changed border VisualsSlider label from "Border" to "Width" and variant from "height" to "width" to follow width slider pattern.
+    - when: 2026-01-12
+      result: last line selection fix
+      notes: Fixed off-by-one error in VisualsSlider click calculation. Added buffer calculation (percent + 0.5/lineCount) to ensure the last line is fully selectable. This addresses the issue where users could only select up to the second-to-last line.
+    - when: 2026-01-12
+      result: documentation update
+      notes: Updated PERSONAL_PLUGIN_CHEATSHEET.md with enhanced VisualsSlider template including label and variant props, improved CSS with variant-specific classes, and comprehensive usage examples showing proper implementation patterns.
+  outcome: VisualsSlider component now supports customizable labels and variants, properly allows selection of the last line, and includes comprehensive documentation for future development.
+  next_action: None - task complete.
+  updated: 2026-01-12
+
+- id: T-008
+  title: Fix radius control starting at 999 instead of honoring 20 max
+  status: completed
+  summary: Fixed barRadius control that was defaulting to 999 and allowing values up to 999 instead of the intended 20 max.
+  attempts:
+    - when: 2026-01-12
+      result: success
+      notes: 
+        * Changed barRadius control max from 999 to 20 in Loading.tsx (line 2563)
+        * Updated DEFAULT_LOAD_BAR barRadius from 999 to 4 in both Loading.tsx and Plugin/src/App.tsx
+        * Plugin already had correct max: 20 constraint in the range slider
+  outcome: Radius control now properly honors the 20 max value and starts at reasonable default of 4 instead of 999.
+  next_action: None - task complete.
+  updated: 2026-01-12
+
 ## Technical Decisions
 - **AgentMemory Established**: Created baseline AgentMemory per workflow on 2026-01-10 to capture ongoing tasks.
 - **VisualsSlider Component**: Custom React component that renders vertical lines with dynamic height based on normalized value. Removed range input in favor of direct pointer event handling on the lines container. Label integrated inside the box, no numerical value display. Fine-tuned positioning using relative CSS positioning for precise layout adjustments.
