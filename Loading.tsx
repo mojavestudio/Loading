@@ -92,6 +92,28 @@ type Props = {
     bar?: Partial<LoadBarConfig>
     label?: Partial<LoadBarConfig>
 
+    // Direct bar properties
+    barRadius?: number
+    barColor?: string
+    thickness?: number
+    trackColor?: string
+    showTrack?: boolean
+    trackThickness?: number
+    circleGap?: number
+    startAtLabel?: boolean
+    finishDelay?: number
+    showBorder?: boolean
+    borderWidth?: number
+    borderColor?: string
+    
+    // Direct label properties
+    showLabel?: boolean
+    labelColor?: string
+    labelFontSize?: number
+    labelFontFamily?: string
+    labelFontWeight?: string | number
+    labelText?: string
+
     // Auto-hide when complete
     hideWhenComplete: boolean
 
@@ -1189,12 +1211,16 @@ export default function Loading(p: Props) {
         ? perpetualProgress
         : currentProgress
     const barTransformOrigin =
-        startAtLabel && animationStyle === "bar"
+        animationStyle === "bar"
             ? labelPosition === "right"
-                ? "100% 50%"
-                : labelPosition === "center"
-                ? "50% 50%"
-                : "0% 50%"
+                ? startAtLabel
+                    ? "100% 50%"
+                    : "0% 50%"
+                : labelPosition === "left"
+                ? startAtLabel
+                    ? "0% 50%"
+                    : "100% 50%"
+                : "50% 50%" // Always center for center position
             : "0% 50%"
     const textFillProgress =
         animationStyle === "text" && textPerpetual && progressValue < 0.999

@@ -18,7 +18,7 @@ import {
     CSSProperties,
 } from "react"
 import { createPortal } from "react-dom"
-import { ArrowsOut, Barricade, Plus, SpinnerGap, TextT } from "@phosphor-icons/react"
+import { ArrowsOut, Barricade, ClockCounterClockwise, Plus, SpinnerGap, TextT } from "@phosphor-icons/react"
 import "./App.css"
 
 type ThemeMode = "light" | "dark"
@@ -143,6 +143,7 @@ const NumberInput = ({
     step?: number
     style?: CSSProperties
 }) => {
+    const defaultHeight = 29
     const handleDecrement = () => {
         const newValue = clampNumber(value - step, min, max)
         onChange(newValue)
@@ -160,8 +161,8 @@ const NumberInput = ({
         }
     }
     
-    const isCompact = style?.height !== undefined && Number(style.height) <= 28
-    
+    const isCompact = style?.height !== undefined && Number(style.height) <= 25
+
     return (
         <div
             className="numberInput"
@@ -175,19 +176,20 @@ const NumberInput = ({
                 boxSizing: "border-box",
                 width: "100%",
                 maxWidth: "100%",
+                height: defaultHeight,
                 ...style,
             }}
         >
-            <div
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    flex: 1,
-                    gap: "4px",
-                    padding: isCompact ? "4px 8px" : "8px 10px",
-                    minWidth: 0,
-                }}
-            >
+	            <div
+	                style={{
+	                    display: "flex",
+	                    alignItems: "center",
+	                    flex: 1,
+	                    gap: "4px",
+	                    padding: isCompact ? "2px 8px" : "5px 10px",
+	                    minWidth: 0,
+	                }}
+	            >
                 <input
                     type="number"
                     value={value}
@@ -394,6 +396,15 @@ type BuilderState = {
     width: number
     height: number
 }
+
+type InsertHistoryEntry = {
+    id: string
+    savedAt: number
+    controls: LoadingControls
+}
+
+const HISTORY_KEY = "loading_gate_history_v1"
+const HISTORY_LOCAL_KEY = "loading_gate_history_local_v1"
 
 type AuthStatus = "unknown" | "authorized" | "denied"
 type AuthSnapshot = { email: string; projectName: string; expiresAt: number }
@@ -1170,6 +1181,51 @@ const formatFontWeightLabel = (weight: number | null) => {
     return `${lookup[weight] ?? "Weight"} (${weight})`
 }
 
+const loadHistoryLocal = (): InsertHistoryEntry[] => {
+    if (typeof window === "undefined") return []
+    try {
+        const raw = window.localStorage.getItem(HISTORY_LOCAL_KEY)
+        if (!raw) return []
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) ? (parsed as InsertHistoryEntry[]) : []
+    } catch {
+        return []
+    }
+}
+
+const saveHistoryLocal = (entries: InsertHistoryEntry[]) => {
+    if (typeof window === "undefined") return
+    try {
+        window.localStorage.setItem(HISTORY_LOCAL_KEY, JSON.stringify(entries))
+    } catch {
+        // ignore
+    }
+}
+
+const createHistoryId = () => {
+    try {
+        if (typeof crypto !== "undefined" && "randomUUID" in crypto) return (crypto as any).randomUUID() as string
+    } catch {
+        // ignore
+    }
+    return `${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
+const normalizeHistory = (value: unknown): InsertHistoryEntry[] => {
+    if (!Array.isArray(value)) return []
+    const entries = value
+        .map((entry): InsertHistoryEntry | null => {
+            const id = typeof (entry as any)?.id === "string" ? (entry as any).id : null
+            const savedAt = typeof (entry as any)?.savedAt === "number" ? (entry as any).savedAt : null
+            const controls = (entry as any)?.controls
+            if (!id || !Number.isFinite(savedAt) || !controls || typeof controls !== "object") return null
+            return { id, savedAt, controls: controls as LoadingControls }
+        })
+        .filter(Boolean) as InsertHistoryEntry[]
+    entries.sort((a, b) => b.savedAt - a.savedAt)
+    return entries.slice(0, 10)
+}
+
 export function App() {
     const initialSnapshot = loadStoredAuthSnapshot()
     const [authSnapshot, setAuthSnapshot] = useState<AuthSnapshot | null>(initialSnapshot)
@@ -1200,8 +1256,10 @@ export function App() {
             },
         }))
     }, [builder.controls.loadBar.animationStyle, builder.controls.loadBar.labelPlacement])
-    const [activeTab, setActiveTab] = useState<"progress" | "label" | "positioning" | "gate">("progress")
+    const [activeTab, setActiveTab] = useState<"progress" | "label" | "positioning" | "gate" | "history">("progress")
     const [projectFonts, setProjectFonts] = useState<ProjectFont[]>([])
+    const [insertHistory, setInsertHistory] = useState<InsertHistoryEntry[]>([])
+    const [historyLoaded, setHistoryLoaded] = useState(false)
 
     useEffect(() => {
         if (typeof document === "undefined") return
@@ -1252,6 +1310,95 @@ export function App() {
         }),
         [builder.controls, resolvedLoadBar]
     )
+
+    const mergeControlsWithDefaults = useCallback((incoming: unknown): LoadingControls => {
+        const base = createDefaultControls()
+        const candidate = incoming && typeof incoming === "object" ? (incoming as Partial<LoadingControls>) : {}
+        return {
+            ...base,
+            ...candidate,
+            loadBar: {
+                ...DEFAULT_LOAD_BAR,
+                ...(candidate.loadBar || {}),
+            },
+        }
+    }, [])
+
+    const persistHistory = useCallback(async (entries: InsertHistoryEntry[]) => {
+        const normalized = normalizeHistory(entries)
+        saveHistoryLocal(normalized)
+        try {
+            await writeUserScopedPluginData(HISTORY_KEY, JSON.stringify(normalized))
+        } catch {
+            // ignore
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!readyForApp) return
+        if (historyLoaded) return
+        let cancelled = false
+        ;(async () => {
+            try {
+                const raw = await readUserScopedPluginData(HISTORY_KEY)
+                const parsed = raw ? JSON.parse(raw) : null
+                const normalized = normalizeHistory(parsed)
+                if (!cancelled) {
+                    setInsertHistory(normalized.length ? normalized : loadHistoryLocal())
+                    setHistoryLoaded(true)
+                }
+            } catch {
+                if (!cancelled) {
+                    setInsertHistory(loadHistoryLocal())
+                    setHistoryLoaded(true)
+                }
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [readyForApp, historyLoaded])
+
+    const addHistoryEntry = useCallback(
+        async (controls: LoadingControls) => {
+            const entry: InsertHistoryEntry = { id: createHistoryId(), savedAt: Date.now(), controls }
+            setInsertHistory((prev) => {
+                const prevTop = prev[0]?.controls ? JSON.stringify(prev[0].controls) : null
+                const nextKey = JSON.stringify(controls)
+                const next = normalizeHistory([...(prevTop === nextKey ? prev : [entry, ...prev])])
+                void persistHistory(next)
+                return next
+            })
+        },
+        [persistHistory]
+    )
+
+    const restoreHistoryEntry = useCallback(
+        async (entry: InsertHistoryEntry) => {
+            setBuilder((prev) => ({
+                ...prev,
+                controls: mergeControlsWithDefaults(entry.controls),
+            }))
+            await framer.notify("Restored settings from history.", { variant: "success" })
+        },
+        [mergeControlsWithDefaults]
+    )
+
+    const deleteHistoryEntry = useCallback(
+        async (id: string) => {
+            setInsertHistory((prev) => {
+                const next = prev.filter((entry) => entry.id !== id)
+                void persistHistory(next)
+                return next
+            })
+        },
+        [persistHistory]
+    )
+
+    const clearHistory = useCallback(async () => {
+        setInsertHistory([])
+        await persistHistory([])
+    }, [persistHistory])
 
     useEffect(() => {
         let mounted = true
@@ -1382,7 +1529,7 @@ export function App() {
 
     useEffect(() => {
         const baseHeight = 370
-        const extraHeight = 50
+        const extraHeight = 70
         const nextHeight = baseHeight + (isCircleMode ? extraHeight : 0)
         framer
             .showUI({
@@ -1889,6 +2036,7 @@ export function App() {
                 }
             }
             
+            void addHistoryEntry(loadingControls)
             await framer.notify("Loading gate inserted with your settings!", { variant: "success" })
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1926,7 +2074,7 @@ export function App() {
                 variant: "error",
             })
         }
-    }, [COMPONENT_URL, loadingControls, builder, tryFallbackInsert])
+    }, [COMPONENT_URL, loadingControls, builder, tryFallbackInsert, addHistoryEntry])
 
     const activeProjectName = projectName || authSnapshot?.projectName || null
     
@@ -2112,7 +2260,7 @@ export function App() {
                                 position: 'fixed',
                                 top: 5,
                                 right: 15,
-                                transform: 'translateX(80px)',
+                                transform: 'translateX(90px)',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -2177,7 +2325,7 @@ export function App() {
 
             <div
                 style={{
-                    ...(isCircleMode ? { marginTop: -200 } : null),
+                    ...(isCircleMode ? { marginTop: -220 } : null),
                     position: "relative",
                     zIndex: 10,
                 }}
@@ -2214,6 +2362,14 @@ export function App() {
                     >
                         <Barricade size={14} weight="duotone" />
                         <span>Gate</span>
+                    </button>
+                    <button
+                        type="button"
+                        className={`pluginTab${activeTab === "history" ? " is-active" : ""}`}
+                        onClick={() => setActiveTab("history")}
+                    >
+                        <ClockCounterClockwise size={14} weight="duotone" />
+                        <span>History</span>
                     </button>
                 </section>
 
@@ -2567,13 +2723,13 @@ export function App() {
                                         </label>
                                         <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 5 }}>Font</span>
-                                            {usingProjectFont ? (
-                                                <select
-                                                    value={matchedFontFamily ?? fontFamilyOptions[0] ?? ""}
-                                                    style={{ height: 38, padding: "8px 10px" }}
-                                                    onChange={(event) => {
-                                                        const nextValue = event.target.value
-                                                        const variants = fontsByFamily.get(nextValue) ?? []
+	                                            {usingProjectFont ? (
+	                                                <select
+	                                                    value={matchedFontFamily ?? fontFamilyOptions[0] ?? ""}
+	                                                    style={{ height: 32, padding: "8px 10px" }}
+	                                                    onChange={(event) => {
+	                                                        const nextValue = event.target.value
+	                                                        const variants = fontsByFamily.get(nextValue) ?? []
                                                         const fallbackVariant =
                                                             variants.find((variant) => (variant.style ?? "normal") === "normal") ??
                                                             variants[0]
@@ -2616,24 +2772,24 @@ export function App() {
                                         </label>
                                         <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 5 }}>Font size</span>
-                                            <NumberInput
-                                                value={builder.controls.loadBar.labelFontSize}
-                                                onChange={(value) => updateLoadBar({ labelFontSize: value })}
-                                                min={8}
-                                                max={24}
-                                                step={1}
-                                                style={{ height: 18 }}
-                                            />
+	                                            <NumberInput
+	                                                value={builder.controls.loadBar.labelFontSize}
+	                                                onChange={(value) => updateLoadBar({ labelFontSize: value })}
+	                                                style={{ height: 32 }}
+	                                                min={6}
+	                                                max={72}
+	                                                step={0.5}
+	                                            />
                                         </label>
                                         <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 0, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Weight</span>{!usingProjectFont && <span className="rangeValue" style={{ marginRight: 0 }}>{Number(builder.controls.loadBar.labelFontWeight) || 400}</span>}</span>
-                                            {usingProjectFont ? (
-                                                <select
-                                                    value={String(currentNumericWeight)}
-                                                    style={{ height: 38, padding: "8px 10px" }}
-                                                    onChange={(event) => {
-                                                        const numeric = Number(event.target.value)
-                                                        const variants = fontsByFamily.get(matchedFontFamily ?? "") ?? []
+	                                            {usingProjectFont ? (
+	                                                <select
+	                                                    value={String(currentNumericWeight)}
+	                                                    style={{ height: 32, padding: "8px 10px" }}
+	                                                    onChange={(event) => {
+	                                                        const numeric = Number(event.target.value)
+	                                                        const variants = fontsByFamily.get(matchedFontFamily ?? "") ?? []
                                                         const variantMatch = variants.find(
                                                             (variant) =>
                                                                 (variant.style === "italic" ? "italic" : "normal") === resolvedFontStyle &&
@@ -2796,12 +2952,12 @@ export function App() {
                                 )}
                             </SettingsGroup>
                         )}
-                        {activeTab === "gate" && <SettingsGroup 
-                            title="Gate behavior" 
-                            icon={<Barricade size={18} weight="duotone" />}
-                            open={activeTab === "gate"}
-                            onToggle={() => setActiveTab("gate")}
-                        >
+	                        {activeTab === "gate" && <SettingsGroup 
+	                            title="Gate behavior" 
+	                            icon={<Barricade size={18} weight="duotone" />}
+	                            open={activeTab === "gate"}
+	                            onToggle={() => setActiveTab("gate")}
+	                        >
 	                            <div className="settingsRow settingsRow--gateTriple">
 	                                <div className="gateField">
 	                                    <div className="gateField-label">Minimum</div>
@@ -2860,9 +3016,76 @@ export function App() {
                                     Hide when complete
                                 </button>
                             </div>
-                        </SettingsGroup>}
-                    </section>
-                </article>
+	                        </SettingsGroup>}
+                            {activeTab === "history" && (
+                                <SettingsGroup
+                                    title="History"
+                                    icon={<ClockCounterClockwise size={18} weight="duotone" />}
+                                    open={activeTab === "history"}
+                                    onToggle={() => setActiveTab("history")}
+                                >
+                                    <div className="settingsRow" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                                        <span className="hintText" style={{ margin: 0 }}>
+                                            Last 10 inserts
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="toggleButton"
+                                            onClick={clearHistory}
+                                            disabled={!insertHistory.length}
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
+                                    {!insertHistory.length ? (
+                                        <p className="hintText" style={{ margin: 0, padding: "4px 2px" }}>
+                                            No saved inserts yet. Click Insert to start building a history.
+                                        </p>
+                                    ) : (
+                                        <div className="historyList">
+                                            {insertHistory.map((entry) => {
+                                                const style = entry.controls?.loadBar?.animationStyle ?? "bar"
+                                                const label = entry.controls?.loadBar?.labelText ?? "Loading"
+                                                return (
+                                                    <div key={entry.id} className="historyItem">
+                                                        <div className="historyItemHeader">
+                                                            <div className="historyItemTitle">
+                                                                {label} · {style}
+                                                            </div>
+                                                            <div className="historyItemMeta">
+                                                                {new Date(entry.savedAt).toLocaleString()}
+                                                            </div>
+                                                        </div>
+                                                        <div className="historyItemMeta">
+                                                            Min {entry.controls?.minSeconds ?? 0}s · Timeout{" "}
+                                                            {entry.controls?.timeoutSeconds ?? 0}s · Finish{" "}
+                                                            {entry.controls?.loadBar?.finishDelay ?? 0}s
+                                                        </div>
+                                                        <div className="historyItemActions">
+                                                            <button
+                                                                type="button"
+                                                                className="toggleButton"
+                                                                onClick={() => restoreHistoryEntry(entry)}
+                                                            >
+                                                                Restore
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="toggleButton"
+                                                                onClick={() => deleteHistoryEntry(entry.id)}
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </SettingsGroup>
+                            )}
+	                    </section>
+	                </article>
             </section>
         </div>
             <footer className="loadingFooter loadingFooter--main">
@@ -3945,13 +4168,13 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             )
         }
 
-        if (loadBar.animationStyle === "circle") {
-            const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
-            // Reduce circle size to 60% of available space, then shrink by another 40% (total 20% of original)
-            const circleSize = baseCircleSize * 0.6 * 0.6
-            const strokeWidth = loadBar.lineWidth
-            const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
-            const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
+	        if (loadBar.animationStyle === "circle") {
+	            const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
+	            // Reduce circle size (live preview) by an additional 20%
+	            const circleSize = baseCircleSize * 0.6 * 0.6 * 0.8
+	            const strokeWidth = loadBar.lineWidth
+	            const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
+	            const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
             const circumference = 2 * Math.PI * circleRadius
             const circleOffsetX = (contentWidth - circleSize) / 2 + 60 // Move 60px to the right
             const circleOffsetY = (contentHeight - circleSize) / 2
@@ -3994,7 +4217,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         transform: "translateY(-100px)",
                     }}
                 >
-                    <svg width={circleSize} height={circleSize} style={{ transform: `translateX(30px) translateY(-10px) rotate(${rotationDeg}deg)` }}>
+	                    <svg width={circleSize} height={circleSize} style={{ transform: `translateX(60px) translateY(-10px) rotate(${rotationDeg}deg)` }}>
                         {loadBar.showTrack && loadBar.fillStyle !== "lines" && (
                             <circle
                                 cx={circleSize / 2}
@@ -4077,9 +4300,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 left: "50%",
                                 top: "50%",
                                 pointerEvents: "none",
-                                transform: `translateX(30px) translate(-50%, -50%) translateY(-10px)${labelOffsetX ? ` translateX(${labelOffsetX}px)` : ""}${labelOffsetY ? ` translateY(${-labelOffsetY}px)` : ""}`,
-                            }}
-                        >
+	                                transform: `translateX(60px) translate(-50%, -50%) translateY(-10px)${labelOffsetX ? ` translateX(${labelOffsetX}px)` : ""}${labelOffsetY ? ` translateY(${-labelOffsetY}px)` : ""}`,
+	                            }}
+	                        >
                             <div
                                 className="previewLabel"
                                 style={{
@@ -4100,10 +4323,10 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 height: circleSize,
                                 left: "50%",
                                 top: "50%",
-                                transform: "translateX(30px) translate(-50%, -50%) translateY(-10px)",
-                                pointerEvents: "none",
-                            }}
-                        >
+	                                transform: "translateX(60px) translate(-50%, -50%) translateY(-10px)",
+	                                pointerEvents: "none",
+	                            }}
+	                        >
 		                            {(() => {
                                 // Precise mathematical positioning for circle labels on a 3×3 grid:
                                 // - Center (0,0): dead center of circle

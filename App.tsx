@@ -176,7 +176,7 @@ const NumberInput = ({
                 ...style,
             }}
         >
-            <div style={{ display: "flex", alignItems: "center", flex: 1, gap: "4px", padding: "8px 10px", minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", flex: 1, gap: "4px", padding: "6.5px 10px", minWidth: 0 }}>
                 <input
                     type="number"
                     value={value}
@@ -3708,15 +3708,15 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             )
         }
 
-        if (loadBar.animationStyle === "circle") {
-            const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
-            // Compensate for reduced container size to keep circle the same visual size
-            const boxSizeReduction = 20
-            const circleBoxSize = Math.max(0, Math.min(baseCircleSize - 12 + boxSizeReduction, baseCircleSize)) // Add back the reduction, but cap at container size
-            const circleSize = circleBoxSize * 0.8
-            const strokeWidth = loadBar.lineWidth
-            const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
-            const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
+	        if (loadBar.animationStyle === "circle") {
+	            const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
+	            // Compensate for reduced container size to keep circle the same visual size
+	            const boxSizeReduction = 20
+	            const circleBoxSize = Math.max(0, Math.min(baseCircleSize - 12 + boxSizeReduction, baseCircleSize)) // Add back the reduction, but cap at container size
+	            const circleSize = circleBoxSize * 0.64
+	            const strokeWidth = loadBar.lineWidth
+	            const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
+	            const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
             const circumference = 2 * Math.PI * circleRadius
             const circleOffsetX = (contentWidth - circleSize) / 2
             const circleOffsetY = (contentHeight - circleSize) / 2
