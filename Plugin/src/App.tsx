@@ -309,12 +309,13 @@ const SearchableFontDropdown = (props: {
             position: "fixed",
             left,
             width,
-            background: "#1D1D1Dc",
+            background: "var(--surface-card)",
             border: "1px solid var(--border-soft)",
             borderRadius: 6,
-            zIndex: 100000,
+            zIndex: 2147483647,
             boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             overflow: "hidden",
+            isolation: "isolate",
         }
 
         if (openAbove) {
@@ -406,7 +407,7 @@ const SearchableFontDropdown = (props: {
                                     padding: "6px 10px",
                                     border: "1px solid var(--border-soft)",
                                     borderRadius: 6,
-                                    background: "#111111",
+                                    background: "var(--input-background)",
                                     color: "var(--text-primary)",
                                     fontSize: 13,
                                     outline: "none",
@@ -414,7 +415,14 @@ const SearchableFontDropdown = (props: {
                                 }}
                             />
                         </div>
-                        <div style={{ overflowY: "auto", maxHeight: Math.max(80, menuLayout.maxHeight - 50) }} role="listbox">
+                        <div
+                            style={{
+                                overflowY: "auto",
+                                maxHeight: Math.max(80, menuLayout.maxHeight - 50),
+                                background: "var(--surface-card)",
+                            }}
+                            role="listbox"
+                        >
                             {customEntryVisible && (
                                 <div
                                     key={`__custom__${searchTerm}`}
@@ -1175,7 +1183,8 @@ const DEFAULT_COMPONENT_URL = () => {
         }
     }
 
-    return "https://framer.com/m/Loading-v5jr.js@gRJ9Du2k0p5S2srmIXNj"
+    // Use latest version format (without version ID)
+    return "https://framer.com/m/Loading-v5jr.js"
 }
 
 const COMPONENT_URL =
@@ -2208,66 +2217,85 @@ export function App() {
         // https://www.framer.com/developers/plugins/working-with-component-instances
         // Match the pattern from example.tsx: width/height as numbers, include autoSize and constraints
         
-        // Transform plugin's loadBar structure to match component's property controls:
-        // Component expects: bar (animation settings), label (label settings)
-        // Plugin has: loadBar (combined)
-        const mapControlsToComponentStructure = (controls: LoadingControls) => {
+        // IMPORTANT: Framer validates component instance "controls" against the target
+        // component's property controls. Passing extra keys can cause:
+        // "lookup contains invalid query (item #1)".
+        // So only pass keys that exist in `addPropertyControls` in `Plugin/Plugins/Loading.tsx`.
+        const mapControlsToComponentPropertyControls = (controls: LoadingControls) => {
             const { loadBar } = controls
+
+            const fontFromControl: FontControlValue | undefined = loadBar.labelFont
+            const normalizedLabelFont: FontControlValue = {
+                fontFamily: String(
+                    fontFromControl?.fontFamily ??
+                        (fontFromControl as any)?.family ??
+                        loadBar.labelFontFamily ??
+                        DEFAULT_LOAD_BAR.labelFontFamily
+                ),
+                fontWeight:
+                    fontFromControl?.fontWeight ??
+                    (fontFromControl as any)?.weight ??
+                    loadBar.labelFontWeight ??
+                    DEFAULT_LOAD_BAR.labelFontWeight,
+                fontStyle:
+                    (fontFromControl?.fontStyle ?? (fontFromControl as any)?.style) === "italic"
+                        ? "italic"
+                        : "normal",
+                fontSize: (() => {
+                    const raw = fontFromControl?.fontSize
+                    if (typeof raw === "string" && raw.trim()) return raw
+                    if (typeof raw === "number" && isFinite(raw)) return `${raw}px`
+                    const fallback = loadBar.labelFontSize ?? DEFAULT_LOAD_BAR.labelFontSize
+                    return `${fallback}px`
+                })(),
+            }
+
             return {
-                // Top-level controls
                 minSeconds: controls.minSeconds,
                 timeoutSeconds: controls.timeoutSeconds,
                 oncePerSession: controls.oncePerSession,
                 runInPreview: controls.runInPreview,
                 hideWhenComplete: controls.hideWhenComplete,
-                // Top-level label props (component checks these first)
-                labelOutsideDirection: loadBar.labelOutsideDirection,
-                labelPosition: loadBar.labelPosition,
-                labelPlacement: loadBar.labelPlacement,
-                // bar object - matches component's "bar" property control
                 bar: {
                     animationStyle: loadBar.animationStyle,
                     fillStyle: loadBar.fillStyle,
-                    lineWidth: loadBar.lineWidth,
-                    lineCount: loadBar.lineCount,
+                    textFillStyle: loadBar.textFillStyle,
+                    textFillColor: loadBar.textFillColor,
+                    textPerpetual: loadBar.textPerpetual,
+                    textReverse: loadBar.textReverse,
                     height: loadBar.height,
                     perpetual: loadBar.perpetual,
                     perpetualGap: loadBar.perpetualGap,
+                    startAtLabel: loadBar.startAtLabel,
                     barRadius: loadBar.barRadius,
                     barColor: loadBar.barColor,
-                    trackColor: loadBar.trackColor,
+                    lineWidth: loadBar.lineWidth,
+                    lineCount: loadBar.lineCount,
                     showTrack: loadBar.showTrack,
-                    trackWidth: loadBar.trackWidth,
                     circleGap: loadBar.circleGap,
-                    startAtLabel: loadBar.startAtLabel,
+                    trackColor: loadBar.trackColor,
+                    trackWidth: loadBar.trackWidth,
                     finishDelay: loadBar.finishDelay,
                     showBorder: loadBar.showBorder,
                     borderWidth: loadBar.borderWidth,
                     borderColor: loadBar.borderColor,
                 },
-                // label object - matches component's "label" property control
                 label: {
                     showLabel: loadBar.showLabel,
-                    labelText: loadBar.labelText,
                     labelColor: loadBar.labelColor,
-                    labelFontSize: loadBar.labelFontSize,
-                    labelFontFamily: loadBar.labelFontFamily,
-                    labelFontWeight: loadBar.labelFontWeight,
-                    labelFont: loadBar.labelFont,
+                    labelText: loadBar.labelText,
+                    textDisplayMode: loadBar.textDisplayMode,
+                    labelFont: normalizedLabelFont,
                     labelPosition: loadBar.labelPosition,
                     labelPlacement: loadBar.labelPlacement,
                     labelOutsideDirection: loadBar.labelOutsideDirection,
                     labelOffsetX: loadBar.labelOffsetX,
                     labelOffsetY: loadBar.labelOffsetY,
                 },
-                // Backward compatible loadBar
-                loadBar: {
-                    ...loadBar,
-                },
             }
         }
-        
-        const mappedControls = mapControlsToComponentStructure(loadingControls)
+
+        const mappedControls = mapControlsToComponentPropertyControls(loadingControls)
 
         const componentUrl = (COMPONENT_URL || "").trim()
         const insertAttrs = {
@@ -3134,7 +3162,7 @@ export function App() {
                                     </select>
                                 </label>
                                 <label style={{ flex: "1 1 0", minWidth: 0 }}>
-                                    <span style={{ marginLeft: 5 }}>Loading text</span>
+                                    <span style={{ marginLeft: 5 }}>Loading Text</span>
                                     <input
                                         type="text"
                                         value={builder.controls.loadBar.labelText}

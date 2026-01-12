@@ -1,6 +1,6 @@
 # Loading Gate
 
-`Loading.tsx` exposes a Framer code component that shows a polished progress bar while it waits for your page to be ready. It uses Framer Motion springs for the animation, supports multiple readiness signals (window load, assets, fonts, quiet time), and can optionally wait for the bar to finish animating before resolving.
+`Plugin/Plugins/Loading.tsx` is the canonical Framer code component source for this repo. It shows a polished progress bar while it waits for your page to be ready. It uses Framer Motion springs for the animation, supports multiple readiness signals (window load, assets, fonts, quiet time), and can optionally wait for the bar to finish animating before resolving.
 
 ## Features
 
@@ -12,7 +12,7 @@
 
 ## Expanded Plugin Functionality
 
-- The designer-facing plugin exposes the exact same gating, animation, and label controls as the `Loading.tsx` component so every builder switch updates the published behavior.
+- The designer-facing plugin exposes the exact same gating, animation, and label controls as the `Plugin/Plugins/Loading.tsx` component so every builder switch updates the published behavior.
 - Gate logic (minimum hold, timeout, session lock, once-per-session) and circle quirks (perpetual animation, start-at-label) share the same helpers between component and plugin for perfect parity.
 - Licensing/auth uses the Google Apps Script endpoint, stores sessions in both localStorage and Framer scoped storage, and surfaces Clear Video & Purchase actions in the footer.
 - Settings menus include the three accordions—Gate Behavior, Progress Animation, Label—each with a Phosphor icon and transparent toggle so the layout feels like one continuous column.
@@ -25,7 +25,7 @@
 - `framer-motion`
 - Framer code component environment (optional but recommended)
 
-Install dependencies in the folder where `Loading.tsx` lives:
+Install dependencies in the folder where the Framer plugin lives (the component lives at `Plugin/Plugins/Loading.tsx`):
 
 ```bash
 npm install react react-dom framer framer-motion
@@ -33,14 +33,14 @@ npm install react react-dom framer framer-motion
 
 ## Usage
 
-1. Copy `Loading.tsx` into your Framer project's **Code** directory (or import it into the provided one).
+1. Copy `Plugin/Plugins/Loading.tsx` into your Framer project's **Code** directory (or rely on Framer Git Sync to pull it from this repo).
 2. Restart the Framer canvas so the component appears under Code Components.
 3. Drag the **Loading Gate** component onto the canvas and tweak the property controls to match your gating needs.
 4. Use the `onReady` action or variant switch to reveal the rest of your experience once loading completes.
 
 ## Publishing
 
-This repo is ready to be initialized with git (run `git init` inside the folder). Commit `Loading.tsx` and `README.md`, then publish the repository via GitHub Desktop.
+This repo is ready to be initialized with git (run `git init` inside the folder). Commit `Plugin/Plugins/Loading.tsx` and `README.md`, then publish the repository via GitHub Desktop.
 
 Feel free to open issues or PRs once the repo is online!
 

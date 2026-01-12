@@ -15,7 +15,7 @@ This document distills how Mojave Grid is assembled so future Framer plugins can
 
 ```
 Loading/
-├── Loading.tsx                 # Published code component (Framer Canvas)
+├── Plugin/Plugins/Loading.tsx  # Published code component (Framer Canvas)
 ├── Plugin/                     # Framer plugin workspace
 │   ├── public/
 │   │   ├── Loading.component.js
@@ -128,7 +128,7 @@ Menu panels use consistent styling:
 The component declares static intrinsic size annotations (compile-time constants):
 
 ```ts
-// Loading.tsx
+// Plugin/Plugins/Loading.tsx
 /** @framerIntrinsicWidth  300 */
 /** @framerIntrinsicHeight 300 */
 /** @framerSupportedLayoutWidth any-prefer-fixed */
@@ -229,7 +229,7 @@ if (canSet) {
 The component calculates intrinsic size at runtime based on `animationStyle`:
 
 ```ts
-// Loading.tsx
+// Plugin/Plugins/Loading.tsx
 const intrinsicSize = (() => {
     switch (animationStyle) {
         case "circle":
@@ -249,7 +249,7 @@ const intrinsicSize = (() => {
 The component measures its container size via ResizeObserver:
 
 ```ts
-// Loading.tsx
+// Plugin/Plugins/Loading.tsx
 React.useLayoutEffect(() => {
     const node = rootRef.current
     if (!node) return
@@ -274,7 +274,7 @@ React.useLayoutEffect(() => {
 The component uses measured container size when available, falling back to dynamic intrinsic size:
 
 ```ts
-// Loading.tsx
+// Plugin/Plugins/Loading.tsx
 const measuredWidth =
     (typeof p.style?.width === "number" ? p.style.width : null) ??
     (containerSize.width > 0 ? containerSize.width : intrinsicSize.width)
@@ -298,7 +298,7 @@ const rootStyle: React.CSSProperties = {
     // ... padding, etc.
 }
 ```
-- The plugin always inserts the hosted component located at `https://framer.com/m/Loading-v5jr.js@fzOnzVshQ62Gu32UHI6g`, which is the same code body as `Loading.tsx`. Update `VITE_LOADING_COMPONENT_URL` only if that shared component is republished under a different ID.
+- The plugin inserts a Framer-shared module URL (set via `VITE_LOADING_COMPONENT_URL`, defaulting to the latest `https://framer.com/m/Loading-v5jr.js`) and passes `controls` that match `Plugin/Plugins/Loading.tsx`’s property controls.
 
 ## Settings Menu + Styling Details
 
@@ -420,7 +420,7 @@ All margins are reset to `0` to ensure spacing is controlled exclusively by gap 
 The Canvas component carries `@framerDisableUnlink` to keep it wired to the hosted source:
 
 ```ts
-// Loading.tsx
+// Plugin/Plugins/Loading.tsx
 /** @framerDisableUnlink */
 export default function Loading(p: Props) {
     // Component implementation

@@ -2677,7 +2677,8 @@ addPropertyControls(Loading, {
             !(bar.showBorder ?? DEFAULT_LOAD_BAR.showBorder),
       },
     },
-    label: {
+  },
+  label: {
         type: ControlType.Object,
         title: "Label",
         controls: {
@@ -2732,6 +2733,47 @@ addPropertyControls(Loading, {
                 controls: "extended",
                 hidden: (label: any = {}) =>
                     !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
+            },
+            labelPlacement: {
+                type: ControlType.Enum,
+                title: "Placement",
+                options: ["inside", "outside", "inline", "hidden"],
+                optionTitles: ["Inside", "Outside", "Inline", "Hidden"],
+                displaySegmentedControl: true,
+                defaultValue: DEFAULT_LOAD_BAR.labelPlacement,
+                hidden: (label: any = {}, props: any = {}) => {
+                    if (!(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel)) return true
+                    const anim =
+                        props?.loadBar?.animationStyle ??
+                        props?.bar?.animationStyle ??
+                        DEFAULT_LOAD_BAR.animationStyle
+                    // Bar doesn't support "inline" placement.
+                    return anim === "bar"
+                },
+            },
+            labelOffsetX: {
+                type: ControlType.Number,
+                title: "Offset X",
+                min: -130,
+                max: 130,
+                step: 1,
+                defaultValue: DEFAULT_LOAD_BAR.labelOffsetX ?? 0,
+                displayStepper: true,
+                hidden: (label: any = {}) =>
+                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel) ||
+                    (label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement) === "hidden",
+            },
+            labelOffsetY: {
+                type: ControlType.Number,
+                title: "Offset Y",
+                min: -25,
+                max: 25,
+                step: 1,
+                defaultValue: DEFAULT_LOAD_BAR.labelOffsetY ?? 0,
+                displayStepper: true,
+                hidden: (label: any = {}) =>
+                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel) ||
+                    (label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement) === "hidden",
             },
         labelPosition: {
             type: ControlType.Enum,
