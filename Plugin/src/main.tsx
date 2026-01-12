@@ -39,10 +39,10 @@ import { framer } from "framer-plugin"
 
 // Initialize framer UI
 framer.showUI({
-    width: 365,
-    height: 820,
-    minWidth: 365,
-    maxWidth: 365,
+    width: 500,
+    height: 370,
+    minWidth: 500,
+    maxWidth: 500,
     resizable: false,
 })
 

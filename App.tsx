@@ -18,7 +18,7 @@ import {
     CSSProperties,
 } from "react"
 import { createPortal } from "react-dom"
-import { Barricade, SpinnerGap, TextT } from "@phosphor-icons/react"
+import { ArrowsOut, Barricade, SpinnerGap, TextT } from "@phosphor-icons/react"
 import "./App.css"
 
 type ThemeMode = "light" | "dark"
@@ -699,9 +699,9 @@ const getInsertionSize = (style: LoadBarControls["animationStyle"], builder: Bui
         case "circle":
             return { width: 300, height: 300 }
         case "bar":
-            return { width: builder.width, height: builder.height }
+            return { width: 600, height: 48 } // Force horizontal orientation
         case "text":
-            return { width: builder.width, height: builder.height }
+            return { width: 600, height: 48 } // Force horizontal orientation
         default:
             return { width: 300, height: 300 }
     }
@@ -1313,6 +1313,23 @@ export function App() {
     const circleDimension = Math.max(1, Math.max(builder.width, builder.height) - 30)
     const effectiveWidth = isCircleMode ? circleDimension : builder.width
     const effectiveHeight = isCircleMode ? circleDimension : builder.height
+
+    useEffect(() => {
+        const baseHeight = 370
+        const extraHeight = 50
+        const nextHeight = baseHeight + (isCircleMode ? extraHeight : 0)
+        framer
+            .showUI({
+                width: 500,
+                height: nextHeight,
+                minWidth: 500,
+                maxWidth: 500,
+                minHeight: nextHeight,
+                maxHeight: nextHeight,
+                resizable: false,
+            })
+            .catch(() => {})
+    }, [isCircleMode])
 
     const updateControls = useCallback(
         <K extends keyof LoadingControls>(key: K, value: LoadingControls[K]) => {
@@ -1944,7 +1961,7 @@ export function App() {
                 </section>
                 <footer className="loadingFooter">
                     <p>
-                        © Mojave Studio LLC — Custom Automated Web Design Experts<br />
+                        © Mojave Studio LLC — Custom Automated Web Design Experts —{" "}
                         <a href="https://mojavestud.io" target="_blank" rel="noopener noreferrer">mojavestud.io</a>
                     </p>
                 </footer>
@@ -2025,7 +2042,7 @@ export function App() {
                             open={openSettingsGroup === "progress"}
                             onToggle={() => setOpenSettingsGroup(openSettingsGroup === "progress" ? null : "progress")}
                         >
-                            <div className="settingsRow">
+                            <div className="settingsRow" style={{ flexWrap: "nowrap" }}>
                                 <label>
                                     <span style={{ marginLeft: 5 }}>Style</span>
                                     <select
@@ -2068,6 +2085,92 @@ export function App() {
                                     </select>
                                     )}
                                 </label>
+                                {builder.controls.loadBar.animationStyle !== "text" && (
+                                    <label className="flexColumn" style={{ flex: "0 0 auto", minWidth: "80px" }}>
+                                        Fill color
+                                        <input
+                                            type="color"
+                                            value={builder.controls.loadBar.barColor}
+                                            onChange={(event) => updateLoadBar({ barColor: event.target.value })}
+                                            style={{ width: "50px", height: "24px" }}
+                                        />
+                                    </label>
+                                )}
+                                {builder.controls.loadBar.animationStyle === "bar" && (
+                                    <label className="flexColumn" style={{ flex: "0 0 auto", minWidth: "60px" }}>
+                                        <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Height</span><span className="rangeValue">{builder.controls.loadBar.thickness.toFixed(0)}</span></span>
+                                        <input
+                                            type="range"
+                                            min={1}
+                                            max={50}
+                                            step={1}
+                                            value={builder.controls.loadBar.thickness}
+                                            onChange={(event) => updateLoadBar({ thickness: Number(event.target.value) })}
+                                            style={{ width: "60px" }}
+                                        />
+                                    </label>
+                                )}
+                                {builder.controls.loadBar.animationStyle === "bar" && (
+                                    <label className="flexColumn" style={{ flex: "0 0 auto", minWidth: "60px" }}>
+                                        <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Radius</span><span className="rangeValue">{builder.controls.loadBar.barRadius.toFixed(0)}</span></span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={20}
+                                            value={builder.controls.loadBar.barRadius}
+                                            onChange={(event) => updateLoadBar({ barRadius: Number(event.target.value) })}
+                                            style={{ width: "60px" }}
+                                        />
+                                    </label>
+                                )}
+                                {builder.controls.loadBar.animationStyle === "circle" && (
+                                    <label className="flexColumn" style={{ flex: "0 0 auto", minWidth: "60px" }}>
+                                        <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Gap</span><span className="rangeValue">{builder.controls.loadBar.circleGap.toFixed(0)}</span></span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={90}
+                                            step={1}
+                                            value={builder.controls.loadBar.circleGap}
+                                            onChange={(event) => updateLoadBar({ circleGap: Number(event.target.value) })}
+                                            style={{ width: "60px" }}
+                                        />
+                                    </label>
+                                )}
+                                {(builder.controls.loadBar.animationStyle === "circle" || (builder.controls.loadBar.animationStyle === "bar" && builder.controls.loadBar.fillStyle === "lines")) && (
+                                    <label className="flexColumn" style={{ flex: "0 0 auto", minWidth: "60px" }}>
+                                        <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Thickness</span><span className="rangeValue">{builder.controls.loadBar.lineWidth.toFixed(0)}</span></span>
+                                        <input
+                                            type="range"
+                                            min={1}
+                                            max={15}
+                                            step={1}
+                                            value={builder.controls.loadBar.lineWidth}
+                                            onChange={(event) => updateLoadBar({ lineWidth: Number(event.target.value) })}
+                                            style={{ width: "60px" }}
+                                        />
+                                    </label>
+                                )}
+                                {builder.controls.loadBar.animationStyle === "circle" && (
+                                    <label className="checkbox settingsRow--compressed" style={{ flex: "0 0 auto" }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={builder.controls.loadBar.perpetual}
+                                            onChange={(event) => updateLoadBar({ perpetual: event.target.checked })}
+                                        />
+                                        Perpetual
+                                    </label>
+                                )}
+                                {builder.controls.loadBar.animationStyle === "circle" && (
+                                    <label className="checkbox settingsRow--compressed" style={{ flex: "0 0 auto" }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={builder.controls.loadBar.startAtLabel}
+                                            onChange={(event) => updateLoadBar({ startAtLabel: event.target.checked })}
+                                        />
+                                        Start at label
+                                    </label>
+                                )}
                             </div>
                             {builder.controls.loadBar.animationStyle === "text" &&
                                 (builder.controls.loadBar.textFillStyle === "static" ? "static" : "dynamic") ===
@@ -2117,108 +2220,10 @@ export function App() {
                                     </label>
                                 </div>
                             )}
-                            {builder.controls.loadBar.animationStyle === "circle" && (
-                                <>
-                                    <div className="settingsRow settingsRow--two settingsRow--circleToggles">
-                                        <label className="checkbox settingsRow--compressed">
-                                            <input
-                                                type="checkbox"
-                                                checked={builder.controls.loadBar.perpetual}
-                                                onChange={(event) => updateLoadBar({ perpetual: event.target.checked })}
-                                            />
-                                            Perpetual
-                                        </label>
-                                        <label className="checkbox settingsRow--compressed">
-                                            <input
-                                                type="checkbox"
-                                                checked={builder.controls.loadBar.startAtLabel}
-                                                onChange={(event) => updateLoadBar({ startAtLabel: event.target.checked })}
-                                            />
-                                            Start at label
-                                        </label>
-                                    </div>
-                                    {builder.controls.loadBar.perpetual && (
-                                        <label>
-                                            <span style={{ marginLeft: 5 }}>Gap between animations (seconds)</span>
-                                            <NumberInput
-                                                value={builder.controls.loadBar.perpetualGap}
-                                                onChange={(value) => updateLoadBar({ perpetualGap: value })}
-                                                min={0}
-                                                max={5}
-                                                step={0.1}
-                                            />
-                                        </label>
-                                    )}
-                                </>
-                            )}
-                            {builder.controls.loadBar.animationStyle !== "text" && (
-                                <>
-                                    <div className="settingsRow" style={{ flexWrap: "nowrap" }}>
-                                        <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                            Fill color
-                                            <input
-                                                type="color"
-                                                value={builder.controls.loadBar.barColor}
-                                                onChange={(event) => updateLoadBar({ barColor: event.target.value })}
-                                            />
-                                        </label>
-                                        {builder.controls.loadBar.animationStyle === "bar" && (
-                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Height</span><span className="rangeValue">{builder.controls.loadBar.thickness.toFixed(0)}</span></span>
-                                                <input
-                                                    type="range"
-                                                    min={1}
-                                                    max={50}
-                                                    step={1}
-                                                    value={builder.controls.loadBar.thickness}
-                                                    onChange={(event) => updateLoadBar({ thickness: Number(event.target.value) })}
-                                                />
-                                            </label>
-                                        )}
-                                        {builder.controls.loadBar.animationStyle === "bar" ? (
-                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Radius</span><span className="rangeValue">{builder.controls.loadBar.barRadius.toFixed(0)}</span></span>
-                                                <input
-                                                    type="range"
-                                                    min={0}
-                                                    max={20}
-                                                    value={builder.controls.loadBar.barRadius}
-                                                    onChange={(event) => updateLoadBar({ barRadius: Number(event.target.value) })}
-                                                />
-                                            </label>
-                                        ) : (
-                                            <>
-                                                <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                    <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Gap</span><span className="rangeValue">{builder.controls.loadBar.circleGap.toFixed(0)}</span></span>
-                                                    <input
-                                                        type="range"
-                                                        min={0}
-                                                        max={90}
-                                                        step={1}
-                                                        value={builder.controls.loadBar.circleGap}
-                                                        onChange={(event) => updateLoadBar({ circleGap: Number(event.target.value) })}
-                                                    />
-                                                </label>
-                                                {(builder.controls.loadBar.animationStyle === "circle" || (builder.controls.loadBar.animationStyle === "bar" && builder.controls.loadBar.fillStyle === "lines")) && (
-                                                    <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                        <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Thickness</span><span className="rangeValue">{builder.controls.loadBar.lineWidth.toFixed(0)}</span></span>
-                                                        <input
-                                                            type="range"
-                                                            min={1}
-                                                            max={15}
-                                                            step={1}
-                                                            value={builder.controls.loadBar.lineWidth}
-                                                            onChange={(event) => updateLoadBar({ lineWidth: Number(event.target.value) })}
-                                                        />
-                                                    </label>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                    {builder.controls.loadBar.animationStyle === "circle" && (
+                                                        {builder.controls.loadBar.animationStyle === "circle" && (
                                         <>
                                             {/* Track checkbox and properties */}
-                                            <div className="settingsRow">
+                                            <div className="settingsRow settingsRow--two settingsRow--circleToggles">
                                                 <label className="checkbox">
                                                     <input
                                                         type="checkbox"
@@ -2256,10 +2261,9 @@ export function App() {
                                         </>
                                     )}
                                     {builder.controls.loadBar.animationStyle === "bar" && (
-                                        <>
-                                            {/* Track checkbox and properties */}
-                                            <div className="settingsRow">
-                                                <label className="checkbox">
+                                        <div className="trackBorderGroup">
+                                            <div className="trackBorderRow">
+                                                <label className="checkbox settingsRow--compressed">
                                                     <input
                                                         type="checkbox"
                                                         checked={builder.controls.loadBar.showTrack}
@@ -2267,35 +2271,37 @@ export function App() {
                                                     />
                                                     Track
                                                 </label>
+                                                {builder.controls.loadBar.showTrack && (
+                                                    <>
+                                                        <label className="trackBorder-field trackBorder-color">
+                                                            <span>Color</span>
+                                                            <input
+                                                                type="color"
+                                                                value={builder.controls.loadBar.trackColor}
+                                                                onChange={(event) => updateLoadBar({ trackColor: event.target.value })}
+                                                            />
+                                                        </label>
+                                                        <label className="trackBorder-field trackBorder-slider">
+                                                            <span className="trackBorder-label">
+                                                                <span>Thickness</span>
+                                                                <span className="rangeValue">{builder.controls.loadBar.trackThickness.toFixed(1)}</span>
+                                                            </span>
+                                                            <input
+                                                                type="range"
+                                                                min={1}
+                                                                max={50}
+                                                                step={0.5}
+                                                                value={builder.controls.loadBar.trackThickness}
+                                                                onChange={(event) =>
+                                                                    updateLoadBar({ trackThickness: Number(event.target.value) })
+                                                                }
+                                                            />
+                                                        </label>
+                                                    </>
+                                                )}
                                             </div>
-                                            {builder.controls.loadBar.showTrack && (
-                                                <div className="settingsRow">
-                                                    <label className="flexColumn">
-                                                        Color
-                                                        <input
-                                                            type="color"
-                                                            value={builder.controls.loadBar.trackColor}
-                                                            onChange={(event) => updateLoadBar({ trackColor: event.target.value })}
-                                                        />
-                                                    </label>
-                                                    <label className="flexColumn">
-                                                        <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Thickness</span><span className="rangeValue">{builder.controls.loadBar.trackThickness.toFixed(1)}</span></span>
-                                                        <input
-                                                            type="range"
-                                                            min={1}
-                                                            max={50}
-                                                            step={0.5}
-                                                            value={builder.controls.loadBar.trackThickness}
-                                                            onChange={(event) =>
-                                                                updateLoadBar({ trackThickness: Number(event.target.value) })
-                                                            }
-                                                        />
-                                                    </label>
-                                                </div>
-                                            )}
-                                            {/* Border checkbox and properties */}
-                                            <div className="settingsRow">
-                                                <label className="checkbox">
+                                            <div className="trackBorderRow">
+                                                <label className="checkbox settingsRow--compressed">
                                                     <input
                                                         type="checkbox"
                                                         checked={builder.controls.loadBar.showBorder}
@@ -2303,31 +2309,34 @@ export function App() {
                                                     />
                                                     Border
                                                 </label>
+                                                {builder.controls.loadBar.showBorder && (
+                                                    <>
+                                                        <label className="trackBorder-field trackBorder-color">
+                                                            <span>Color</span>
+                                                            <input
+                                                                type="color"
+                                                                value={builder.controls.loadBar.borderColor}
+                                                                onChange={(event) => updateLoadBar({ borderColor: event.target.value })}
+                                                            />
+                                                        </label>
+                                                        <label className="trackBorder-field trackBorder-slider">
+                                                            <span className="trackBorder-label">
+                                                                <span>Thickness</span>
+                                                                <span className="rangeValue">{builder.controls.loadBar.borderWidth.toFixed(0)}</span>
+                                                            </span>
+                                                            <input
+                                                                type="range"
+                                                                min={1}
+                                                                max={12}
+                                                                step={1}
+                                                                value={builder.controls.loadBar.borderWidth}
+                                                                onChange={(event) => updateLoadBar({ borderWidth: Number(event.target.value) })}
+                                                            />
+                                                        </label>
+                                                    </>
+                                                )}
                                             </div>
-                                            {builder.controls.loadBar.showBorder && (
-                                                <div className="settingsRow">
-                                                    <label>
-                                                        Color
-                                                        <input
-                                                            type="color"
-                                                            value={builder.controls.loadBar.borderColor}
-                                                            onChange={(event) => updateLoadBar({ borderColor: event.target.value })}
-                                                        />
-                                                    </label>
-                                                    <label>
-                                                        Thickness <span className="rangeValue">{builder.controls.loadBar.borderWidth.toFixed(0)}</span>
-                                                        <input
-                                                            type="range"
-                                                            min={1}
-                                                            max={12}
-                                                            step={1}
-                                                            value={builder.controls.loadBar.borderWidth}
-                                                            onChange={(event) => updateLoadBar({ borderWidth: Number(event.target.value) })}
-                                                        />
-                                                    </label>
-                                                </div>
-                                            )}
-                                        </>
+                                        </div>
                                     )}
                                 </>
                             )}
@@ -2530,44 +2539,51 @@ export function App() {
                                             )}
                                         </>
                                     )}
-                                    {supportsXAlignment && (
-                                        <div className="settingsRow settingsRow--alignment">
-                                            <div className="alignmentGroup alignmentGroup-grid">
-                                                <span className="alignmentGroup-title">Align</span>
-                                                <div className="alignmentGroup-body">
-                                                    {supportsYAlignment ? (
-                                                        <AlignmentGrid
-                                                            valueX={builder.controls.loadBar.labelPosition}
-                                                            valueY={builder.controls.loadBar.labelOutsideDirection}
-                                                            onChange={handleAlignmentChange}
-                                                        />
-                                                    ) : (
-                                                        <AxisStrip
-                                                            value={builder.controls.loadBar.labelPosition}
-                                                            onChange={handleAxisOnlyChange}
-                                                        />
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="alignmentGroup alignmentGroup-pad">
-                                                <span className="alignmentGroup-title">Offset</span>
-                                                <div className="alignmentGroup-body">
-                                                    <XYPadControl
-                                                        valueX={builder.controls.loadBar.labelOffsetX ?? 0}
-                                                        valueY={builder.controls.loadBar.labelOffsetY ?? 0}
-                                                        minX={LABEL_OFFSET_LIMITS.x.min}
-                                                        maxX={LABEL_OFFSET_LIMITS.x.max}
-                                                        minY={LABEL_OFFSET_LIMITS.y.min}
-                                                        maxY={LABEL_OFFSET_LIMITS.y.max}
-                                                        disableY={!supportsYAlignment}
-                                                        onChange={handleOffsetChange}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
                                 </>
                                 )}
+                        </SettingsGroup>
+                        <SettingsGroup
+                            title="Positioning"
+                            icon={<ArrowsOut size={18} weight="duotone" />}
+                            open={openSettingsGroup === "positioning"}
+                            onToggle={() => setOpenSettingsGroup(openSettingsGroup === "positioning" ? null : "positioning")}
+                        >
+                            {supportsXAlignment && (
+                                <div className="settingsRow settingsRow--alignment">
+                                    <div className="alignmentGroup alignmentGroup-grid">
+                                        <span className="alignmentGroup-title">Align</span>
+                                        <div className="alignmentGroup-body">
+                                            {supportsYAlignment ? (
+                                                <AlignmentGrid
+                                                    valueX={builder.controls.loadBar.labelPosition}
+                                                    valueY={builder.controls.loadBar.labelOutsideDirection}
+                                                    onChange={handleAlignmentChange}
+                                                />
+                                            ) : (
+                                                <AxisStrip
+                                                    value={builder.controls.loadBar.labelPosition}
+                                                    onChange={handleAxisOnlyChange}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="alignmentGroup alignmentGroup-pad">
+                                        <span className="alignmentGroup-title">Offset</span>
+                                        <div className="alignmentGroup-body">
+                                            <XYPadControl
+                                                valueX={builder.controls.loadBar.labelOffsetX ?? 0}
+                                                valueY={builder.controls.loadBar.labelOffsetY ?? 0}
+                                                minX={LABEL_OFFSET_LIMITS.x.min}
+                                                maxX={LABEL_OFFSET_LIMITS.x.max}
+                                                minY={LABEL_OFFSET_LIMITS.y.min}
+                                                maxY={LABEL_OFFSET_LIMITS.y.max}
+                                                disableY={!supportsYAlignment}
+                                                onChange={handleOffsetChange}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </SettingsGroup>
                         <SettingsGroup 
                             title="Gate behavior" 
@@ -2645,7 +2661,7 @@ export function App() {
             </div>
             <footer className="loadingFooter loadingFooter--main">
                 <p>
-                    © Mojave Studio LLC — Custom Automated Web Design Experts<br />
+                    © Mojave Studio LLC — Custom Automated Web Design Experts —{" "}
                     <a href="https://mojavestud.io" target="_blank" rel="noopener noreferrer">mojavestud.io</a>
                 </p>
             </footer>
@@ -3696,7 +3712,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             // Compensate for reduced container size to keep circle the same visual size
             const boxSizeReduction = 20
             const circleBoxSize = Math.max(0, Math.min(baseCircleSize - 12 + boxSizeReduction, baseCircleSize)) // Add back the reduction, but cap at container size
-            const circleSize = circleBoxSize
+            const circleSize = circleBoxSize * 0.8
             const strokeWidth = loadBar.lineWidth
             const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
             const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
@@ -3766,7 +3782,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         position: "relative",
                     }}
                 >
-                    <svg width={circleSize} height={circleSize} style={{ transform: `rotate(${rotationDeg}deg)` }}>
+                    <svg width={circleSize} height={circleSize} style={{ transform: `translateY(-10px) rotate(${rotationDeg}deg)` }}>
                         {loadBar.showTrack && loadBar.fillStyle !== "lines" && (
                             <circle
                                 cx={circleSize / 2}
@@ -3912,7 +3928,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
 
 
         if (loadBar.fillStyle === "solid") {
-            const windowWidth = 300
+            const windowWidth = 350
             const windowHeight = 150
             const containerPadding = 5
             const baseGap = 5
@@ -4117,15 +4133,21 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             
             // Match center-row behavior: do not shrink bar width for X offset
             const barWidthAdjustment = 0
+
+            const barWidthExtra = loadBar.animationStyle === "bar" ? 50 : 0
             
-            // Final bar width in preview - reduced by both reserves and X offset adjustment
-            const previewBarWidth = Math.max(
+            // Final bar width in preview - reduced by both reserves and X offset adjustment, plus 100px extra width
+            const basePreviewBarWidth = Math.max(
                 minBarWidth,
                 windowWidth - reserveLeft - reserveRight - barWidthAdjustment
             )
+
+            const basePreviewBarOffsetX = reserveLeft
+            const baseBarCenterX = basePreviewBarOffsetX + basePreviewBarWidth / 2
+            const previewBarWidth = basePreviewBarWidth + barWidthExtra
             
             // Bar starts after left reserve
-            const previewBarOffsetX = reserveLeft
+            const previewBarOffsetX = clampNumber(baseBarCenterX - previewBarWidth / 2, 0, windowWidth - previewBarWidth)
             
             const barOffsetX = previewBarOffsetX
             const barLeft = barOffsetX
@@ -4374,15 +4396,21 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             // If label is outside on top/bottom rows, X offset should shrink the bar.
             const isTopBottomOutside = isOutside && loadBar.labelOutsideDirection !== "center"
             const barWidthAdjustment = isTopBottomOutside ? Math.abs(labelOffsetXValue) : 0
+
+            const barWidthExtra = loadBar.animationStyle === "bar" ? 50 : 0
             
-            // Final bar width in preview - reduced by both reserves and X offset adjustment
-            const previewBarWidth = Math.max(
+            // Final bar width in preview - reduced by both reserves and X offset adjustment, plus 100px extra width
+            const basePreviewBarWidth = Math.max(
                 minBarWidth,
                 windowWidth - reserveLeft - reserveRight - barWidthAdjustment
             )
+
+            const basePreviewBarOffsetX = reserveLeft
+            const baseBarCenterX = basePreviewBarOffsetX + basePreviewBarWidth / 2
+            const previewBarWidth = basePreviewBarWidth + barWidthExtra
             
             // Bar starts after left reserve
-            const previewBarOffsetX = reserveLeft
+            const previewBarOffsetX = clampNumber(baseBarCenterX - previewBarWidth / 2, 0, windowWidth - previewBarWidth)
             
             const barOffsetX = previewBarOffsetX
             const barLeft = barOffsetX

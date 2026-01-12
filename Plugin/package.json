@@ -6,9 +6,15 @@
   "scripts": {
     "dev": "vite --port 5173",
     "build": "vite build",
-    "preview": "vite preview",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "pack": "npm run build && cd dist && zip -r ../plugin.zip ."
+    "preview": "vite preview --port 4173",
+    "lint": "eslint . --ext ts,tsx --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "type-check": "tsc --noEmit",
+    "pack": "npx framer-plugin-tools@latest pack",
+    "pack:preview": "npm run build && npm run pack && npm run preview",
+    "clean": "rm -rf dist node_modules package-lock.json",
+    "fresh": "npm run clean && npm install",
+    "dev:clean": "npm run clean && npm run dev"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.7",

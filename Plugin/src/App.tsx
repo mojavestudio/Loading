@@ -18,7 +18,7 @@ import {
     CSSProperties,
 } from "react"
 import { createPortal } from "react-dom"
-import { Barricade, SpinnerGap, TextT } from "@phosphor-icons/react"
+import { ArrowsOut, Barricade, Plus, SpinnerGap, TextT } from "@phosphor-icons/react"
 import "./App.css"
 
 type ThemeMode = "light" | "dark"
@@ -263,6 +263,60 @@ const NumberInput = ({
             >
                 +
             </button>
+        </div>
+    )
+}
+
+// Visual Slider component with vertical lines that scale based on value
+const VisualsSlider = ({
+    value,
+    onChange,
+    min,
+    max,
+    step = 1,
+    lineCount = 12,
+}: {
+    value: number
+    onChange: (value: number) => void
+    min: number
+    max: number
+    step?: number
+    lineCount?: number
+}) => {
+    const range = max - min
+    const normalizedValue = Math.max(0, Math.min(1, (value - min) / range))
+    
+    const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        const container = event.currentTarget.closest('.visualsSlider-lines')
+        if (!container) return
+        const rect = container.getBoundingClientRect()
+        const percent = (event.clientX - rect.left) / rect.width
+        const newValue = min + percent * range
+        onChange(Math.max(min, Math.min(max, newValue)))
+    }
+    
+    return (
+        <div className="visualsSlider">
+            <div className="visualsSlider-lines" onPointerDown={handlePointerDown}>
+                <div className="visualsSlider-label">Width</div>
+                <div className="visualsSlider-content">
+                    {Array.from({ length: lineCount }).map((_, index) => {
+                        const linePosition = (index + 1) / lineCount
+                        const isActive = linePosition <= normalizedValue
+                        const heightPercent = Math.max(15, linePosition * 100)
+                        
+                        return (
+                            <div
+                                key={index}
+                                className={`visualsSlider-line ${isActive ? "is-active" : ""}`}
+                                style={{
+                                    height: `${heightPercent}%`,
+                                }}
+                            />
+                        )
+                    })}
+                </div>
+            </div>
         </div>
     )
 }
@@ -699,9 +753,9 @@ const getInsertionSize = (style: LoadBarControls["animationStyle"], builder: Bui
         case "circle":
             return { width: 300, height: 300 }
         case "bar":
-            return { width: builder.width, height: builder.height }
+            return { width: 600, height: 48 } // Force horizontal orientation
         case "text":
-            return { width: builder.width, height: builder.height }
+            return { width: 600, height: 48 } // Force horizontal orientation
         default:
             return { width: 300, height: 300 }
     }
@@ -1134,7 +1188,7 @@ export function App() {
             },
         }))
     }, [builder.controls.loadBar.animationStyle, builder.controls.loadBar.labelPlacement])
-    const [openSettingsGroup, setOpenSettingsGroup] = useState<string | null>("gate")
+    const [activeTab, setActiveTab] = useState<"progress" | "label" | "positioning" | "gate">("progress")
     const [projectFonts, setProjectFonts] = useState<ProjectFont[]>([])
 
     useEffect(() => {
@@ -1313,6 +1367,23 @@ export function App() {
     const circleDimension = Math.max(1, Math.max(builder.width, builder.height) - 30)
     const effectiveWidth = isCircleMode ? circleDimension : builder.width
     const effectiveHeight = isCircleMode ? circleDimension : builder.height
+
+    useEffect(() => {
+        const baseHeight = 370
+        const extraHeight = 50
+        const nextHeight = baseHeight + (isCircleMode ? extraHeight : 0)
+        framer
+            .showUI({
+                width: 500,
+                height: nextHeight,
+                minWidth: 500,
+                maxWidth: 500,
+                minHeight: nextHeight,
+                maxHeight: nextHeight,
+                resizable: false,
+            })
+            .catch(() => {})
+    }, [isCircleMode])
 
     const updateControls = useCallback(
         <K extends keyof LoadingControls>(key: K, value: LoadingControls[K]) => {
@@ -1854,7 +1925,7 @@ export function App() {
     const [gearTriggerWidth, setGearTriggerWidth] = useState(0)
     const headerRef = useRef<HTMLElement | null>(null)
     
-    const heroPreviewWidth = Math.max(1, effectiveWidth)
+    const heroPreviewWidth = Math.max(1, effectiveWidth + 50)
     const heroPreviewHeight = Math.max(1, effectiveHeight)
 
     const maxWidth = Math.max(1, (viewportWidth || heroPreviewWidth) - 30)
@@ -1944,7 +2015,7 @@ export function App() {
                 </section>
                 <footer className="loadingFooter">
                     <p>
-                        © Mojave Studio LLC — Custom Automated Web Design Experts<br />
+                        © Mojave Studio LLC — Custom Automated Web Design Experts —{" "}
                         <a href="https://mojavestud.io" target="_blank" rel="noopener noreferrer">mojavestud.io</a>
                     </p>
                 </footer>
@@ -1955,120 +2026,280 @@ export function App() {
     // Calculate preview dimensions based on animation style
     const isTextMode = loadingControls.loadBar.animationStyle === "text"
     const gearSize = Math.max(gearTriggerWidth || 24, 16)
-    const heroPaddingTop = isCircleMode ? 10 : 20
-    const heroPaddingBottom = (isCircleMode ? 4 : 18) + 20 + extraCirclePadding // keep preview/menu spacing consistent
+    const heroPaddingTop = isCircleMode ? 15 : 20
+    const heroPaddingBottom = isCircleMode ? 10 : 18 + 20 + extraCirclePadding // keep preview/menu spacing consistent
+    const showTrackBorderControls =
+        builder.controls.loadBar.animationStyle === "circle" || builder.controls.loadBar.animationStyle === "bar"
 
     return (
         <main className={`pluginRoot ${themeClass}`}>
             <header ref={headerRef} className="pluginHeader" />
-            <section 
-                className="heroPreviewShell" 
-                style={{ 
-                    paddingTop: heroPaddingTop + 5,
-                    paddingBottom: heroPaddingBottom,
-                    paddingLeft: 0,
-                    paddingRight: 0,
-                }}
-            >
-                <div
-                    className="heroPreviewInner"
-                    style={{
-                        position: "relative",
-                        width: "100%",
-                        marginLeft: "auto",
-                        marginRight: "auto",
-                        marginTop: isCircleMode ? -5 : 5,
-                        height: previewHeight,
+            <div className="heroFixedRegion">
+                <section 
+                    className="heroPreviewShell" 
+                    style={{ 
+                        paddingTop: heroPaddingTop,
+                        paddingBottom: heroPaddingBottom,
+                        paddingLeft: 0,
+                        paddingRight: 0,
                     }}
                 >
                     <div
+                        className="heroPreviewInner"
                         style={{
-                            position: "absolute",
-                            left: "50%",
-                            top: "50%",
-                            transform: "translate(-50%, -50%) translateX(-5px)",
-                            width: previewWidth,
+                            position: "relative",
+                            width: "100%",
+                            marginLeft: "auto",
+                            marginRight: "auto",
+                            marginTop: isCircleMode ? -5 : 5,
                             height: previewHeight,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                    }}
-                >
-                        <LoadingPreview
-                            controls={loadingControls}
-                            width={previewWidth}
-                            height={previewHeight}
-                        />
-                    </div>
-                    <div
-                        className="heroGear"
-                        style={{
-                            width: gearSize,
-                            height: gearSize,
                         }}
                     >
-                        <SettingsPopover
-                            email={authSnapshot?.email}
-                            projectName={activeProjectName}
-                            onSignOut={handleSignOut}
-                            onTriggerRefChange={handleGearTriggerRef}
-                        />
-                    </div>
-                </div>
-            </section>
-            <section className="pluginBody builderBody">
-                <article className="settingsPanel">
-                    <section className="loadingSettings">
-                        <SettingsGroup 
-                            title="Progress animation" 
-                            icon={<SpinnerGap size={18} weight="duotone" />}
-                            open={openSettingsGroup === "progress"}
-                            onToggle={() => setOpenSettingsGroup(openSettingsGroup === "progress" ? null : "progress")}
+                        <div
+                            style={{
+                                position: "absolute",
+                                left: "50%",
+                                top: isCircleMode ? 0 : "50%",
+                                transform: isCircleMode
+                                    ? "translateX(-50%) translateX(-65px)"
+                                    : "translate(-50%, -50%) translateX(-65px)",
+                                width: previewWidth,
+                                height: previewHeight,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                zIndex: 0,
+                                pointerEvents: "none",
+                        }}
+                    >
+                            <LoadingPreview
+                                controls={loadingControls}
+                                width={previewWidth}
+                                height={previewHeight}
+                            />
+                        </div>
+                        <div
+                            className="heroGear"
+                            style={{
+                                width: gearSize,
+                                height: gearSize,
+                                left: 15,
+                                right: 'auto',
+                            }}
                         >
-                            <div className="settingsRow">
-                                <label>
-                                    <span style={{ marginLeft: 5 }}>Style</span>
-                                    <select
-                                        value={builder.controls.loadBar.animationStyle}
-                                        onChange={(event) => updateLoadBar({ animationStyle: event.target.value as "bar" | "circle" | "text" })}
-                                    >
-                                        <option value="bar">Bar</option>
-                                        <option value="circle">Circle</option>
-                                        <option value="text">Text</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    <span style={{ marginLeft: 5 }}>Fill style</span>
-                                    {builder.controls.loadBar.animationStyle === "text" ? (
-                                        <select
-                                            value={
-                                                builder.controls.loadBar.textFillStyle === "static"
-                                                    ? "static"
-                                                    : builder.controls.loadBar.textFillStyle === "oneByOne"
-                                                    ? "oneByOne"
-                                                    : "dynamic"
-                                            }
-                                            onChange={(event) =>
-                                                updateLoadBar({
-                                                    textFillStyle: event.target.value as "static" | "dynamic" | "oneByOne",
-                                                })
-                                            }
-                                        >
-                                            <option value="static">Static</option>
-                                            <option value="dynamic">Dynamic</option>
-                                            <option value="oneByOne">One by One</option>
-                                        </select>
-                                    ) : (
-                                    <select
-                                        value={builder.controls.loadBar.fillStyle}
-                                        onChange={(event) => updateLoadBar({ fillStyle: event.target.value as "solid" | "lines" })}
-                                    >
-                                        <option value="solid">Solid</option>
-                                        <option value="lines">Lines</option>
-                                    </select>
-                                    )}
-                                </label>
-                            </div>
+                            <SettingsPopover
+                                email={authSnapshot?.email}
+                                projectName={activeProjectName}
+                                onSignOut={handleSignOut}
+                                onTriggerRefChange={handleGearTriggerRef}
+                            />
+                        </div>
+                        <div
+                            className="insertButton"
+                            style={{
+                                position: 'fixed',
+                                top: 5,
+                                right: 15,
+                                transform: 'translateX(80px)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                pointerEvents: 'auto',
+                                zIndex: 999,
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={handleInsert}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '8px',
+                                    border: 'none',
+                                    borderRadius: '0',
+                                    background: 'transparent',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '17px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    position: 'relative',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.color = 'var(--accent-primary)';
+                                    const tooltip = document.createElement('span');
+                                    tooltip.textContent = 'Insert';
+                                    tooltip.style.cssText = `
+                                        position: absolute;
+                                        right: 100%;
+                                        top: 50%;
+                                        transform: translateY(-50%);
+                                        margin-right: 8px;
+                                        padding: 4px 8px;
+                                        background: var(--surface-card);
+                                        border: 1px solid var(--border-soft);
+                                        border-radius: 4px;
+                                        color: var(--text-primary);
+                                        font-size: 11px;
+                                        white-space: nowrap;
+                                        pointer-events: none;
+                                        z-index: 1000;
+                                    `;
+                                    e.currentTarget.appendChild(tooltip);
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.color = 'var(--text-primary)';
+                                    const tooltip = e.currentTarget.querySelector('span');
+                                    if (tooltip) {
+                                        tooltip.remove();
+                                    }
+                                }}
+                            >
+                                <Plus size={17} weight="bold" />
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div
+                style={{
+                    ...(isCircleMode ? { marginTop: -200 } : null),
+                    position: "relative",
+                    zIndex: 10,
+                }}
+            >
+                <section className="pluginTabs">
+                    <button
+                        type="button"
+                        className={`pluginTab${activeTab === "progress" ? " is-active" : ""}`}
+                        onClick={() => setActiveTab("progress")}
+                    >
+                        <SpinnerGap size={14} weight="duotone" />
+                        <span>Progress</span>
+                    </button>
+                    <button
+                        type="button"
+                        className={`pluginTab${activeTab === "label" ? " is-active" : ""}`}
+                        onClick={() => setActiveTab("label")}
+                    >
+                        <TextT size={14} weight="duotone" />
+                        <span>Label</span>
+                    </button>
+                    <button
+                        type="button"
+                        className={`pluginTab${activeTab === "positioning" ? " is-active" : ""}`}
+                        onClick={() => setActiveTab("positioning")}
+                    >
+                        <ArrowsOut size={14} weight="duotone" />
+                        <span>Positioning</span>
+                    </button>
+                    <button
+                        type="button"
+                        className={`pluginTab${activeTab === "gate" ? " is-active" : ""}`}
+                        onClick={() => setActiveTab("gate")}
+                    >
+                        <Barricade size={14} weight="duotone" />
+                        <span>Gate</span>
+                    </button>
+                </section>
+
+                <section className="pluginBody builderBody">
+                    <article className="settingsPanel">
+                        <section className="loadingSettings">
+                            {activeTab === "progress" && (
+                                <SettingsGroup
+                                    title="Progress animation"
+                                    icon={<SpinnerGap size={18} weight="duotone" />}
+                                    open={activeTab === "progress"}
+                                    onToggle={() => setActiveTab("progress")}
+                                >
+                                    <div className="settingsRow" style={{ flexWrap: "nowrap", gap: 10 }}>
+                                        <label>
+                                            <span style={{ marginLeft: 5 }}>Style</span>
+                                            <select
+                                                value={builder.controls.loadBar.animationStyle}
+                                                onChange={(event) =>
+                                                    updateLoadBar({ animationStyle: event.target.value as "bar" | "circle" | "text" })
+                                                }
+                                            >
+                                                <option value="bar">Bar</option>
+                                                <option value="circle">Circle</option>
+                                                <option value="text">Text</option>
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span style={{ marginLeft: 5 }}>Fill style</span>
+                                            {builder.controls.loadBar.animationStyle === "text" ? (
+                                                <select
+                                                    value={
+                                                        builder.controls.loadBar.textFillStyle === "static"
+                                                            ? "static"
+                                                            : builder.controls.loadBar.textFillStyle === "oneByOne"
+                                                            ? "oneByOne"
+                                                            : "dynamic"
+                                                    }
+                                                    onChange={(event) =>
+                                                        updateLoadBar({
+                                                            textFillStyle: event.target.value as "static" | "dynamic" | "oneByOne",
+                                                        })
+                                                    }
+                                                >
+                                                    <option value="static">Static</option>
+                                                    <option value="dynamic">Dynamic</option>
+                                                    <option value="oneByOne">One by One</option>
+                                                </select>
+                                            ) : (
+                                                <select
+                                                    value={builder.controls.loadBar.fillStyle}
+                                                    onChange={(event) =>
+                                                        updateLoadBar({ fillStyle: event.target.value as "solid" | "lines" })
+                                                    }
+                                                >
+                                                    <option value="solid">Solid</option>
+                                                    <option value="lines">Lines</option>
+                                                </select>
+                                            )}
+                                        </label>
+                                        {(builder.controls.loadBar.animationStyle === "bar" ||
+                                            builder.controls.loadBar.animationStyle === "circle") ? (
+                                            <div className="settingsRow settingsRow--trackBorderGroup">
+                                                <div className="trackBorder-row">
+                                                    <div
+                                                        className={`trackBorderDrawer ${
+                                                            builder.controls.loadBar.perpetual ? "is-active" : ""
+                                                        }`}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            className="trackBorderDrawer-toggle"
+                                                            onClick={() =>
+                                                                updateLoadBar({ perpetual: !builder.controls.loadBar.perpetual })
+                                                            }
+                                                            aria-pressed={builder.controls.loadBar.perpetual}
+                                                        >
+                                                            Perpetual
+                                                        </button>
+                                                        <div className="trackBorderDrawer-content">
+                                                            <label className="trackBorder-field">
+                                                                <span>Replay<br/>Gap</span>
+                                                                <NumberInput
+                                                                    value={builder.controls.loadBar.perpetualGap}
+                                                                    onChange={(value) =>
+                                                                        updateLoadBar({ perpetualGap: value })
+                                                                    }
+                                                                    min={0}
+                                                                    max={5}
+                                                                    step={0.1}
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : builder.controls.loadBar.animationStyle !== "text" ? null : null}
+                                    </div>
                             {builder.controls.loadBar.animationStyle === "text" &&
                                 (builder.controls.loadBar.textFillStyle === "static" ? "static" : "dynamic") ===
                                     "dynamic" && (
@@ -2107,61 +2338,35 @@ export function App() {
                              builder.controls.loadBar.showTrack && 
                              builder.controls.loadBar.textFillStyle !== "static" && (
                                 <div className="settingsRow">
-                                    <label className="flexColumn">
-                                        <span style={{ marginLeft: 5 }}>Color</span>
-                                        <input
-                                            type="color"
-                                            value={builder.controls.loadBar.trackColor}
-                                            onChange={(event) => updateLoadBar({ trackColor: event.target.value })}
-                                        />
-                                    </label>
-                                </div>
-                            )}
-                            {builder.controls.loadBar.animationStyle === "circle" && (
-                                <>
-                                    <div className="settingsRow settingsRow--two settingsRow--circleToggles">
-                                        <label className="checkbox settingsRow--compressed">
-                                            <input
-                                                type="checkbox"
-                                                checked={builder.controls.loadBar.perpetual}
-                                                onChange={(event) => updateLoadBar({ perpetual: event.target.checked })}
-                                            />
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flex: "1 1 0", minWidth: 0 }}>
+                                        <button
+                                            type="button"
+                                            className={`toggleButton trackBorderToggle ${
+                                                builder.controls.loadBar.perpetual ? "is-active" : ""
+                                            }`}
+                                            onClick={() =>
+                                                updateLoadBar({ perpetual: !builder.controls.loadBar.perpetual })
+                                            }
+                                            aria-pressed={builder.controls.loadBar.perpetual}
+                                        >
                                             Perpetual
-                                        </label>
-                                        <label className="checkbox settingsRow--compressed">
-                                            <input
-                                                type="checkbox"
-                                                checked={builder.controls.loadBar.startAtLabel}
-                                                onChange={(event) => updateLoadBar({ startAtLabel: event.target.checked })}
-                                            />
-                                            Start at label
-                                        </label>
+                                        </button>
                                     </div>
-                                    {builder.controls.loadBar.perpetual && (
-                                        <label>
-                                            <span style={{ marginLeft: 5 }}>Gap between animations (seconds)</span>
-                                            <NumberInput
-                                                value={builder.controls.loadBar.perpetualGap}
-                                                onChange={(value) => updateLoadBar({ perpetualGap: value })}
-                                                min={0}
-                                                max={5}
-                                                step={0.1}
-                                            />
-                                        </label>
-                                    )}
-                                </>
+                                </div>
                             )}
                             {builder.controls.loadBar.animationStyle !== "text" && (
                                 <>
-                                    <div className="settingsRow" style={{ flexWrap: "nowrap" }}>
-                                        <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                            Fill color
-                                            <input
-                                                type="color"
-                                                value={builder.controls.loadBar.barColor}
-                                                onChange={(event) => updateLoadBar({ barColor: event.target.value })}
-                                            />
-                                        </label>
+                                    <div className="settingsRow" style={{ flexWrap: "nowrap", gap: 10 }}>
+                                        {builder.controls.loadBar.animationStyle === "bar" && (
+                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+                                                <span style={{ marginLeft: 5 }}>Fill color</span>
+                                                <input
+                                                    type="color"
+                                                    value={builder.controls.loadBar.barColor}
+                                                    onChange={(event) => updateLoadBar({ barColor: event.target.value })}
+                                                />
+                                            </label>
+                                        )}
                                         {builder.controls.loadBar.animationStyle === "bar" && (
                                             <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
                                                 <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Height</span><span className="rangeValue">{builder.controls.loadBar.thickness.toFixed(0)}</span></span>
@@ -2188,6 +2393,16 @@ export function App() {
                                             </label>
                                         ) : (
                                             <>
+                                                {builder.controls.loadBar.animationStyle === "circle" && (
+                                                    <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+                                                        <span style={{ marginLeft: 5 }}>Fill color</span>
+                                                        <input
+                                                            type="color"
+                                                            value={builder.controls.loadBar.barColor}
+                                                            onChange={(event) => updateLoadBar({ barColor: event.target.value })}
+                                                        />
+                                                    </label>
+                                                )}
                                                 <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
                                                     <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Gap</span><span className="rangeValue">{builder.controls.loadBar.circleGap.toFixed(0)}</span></span>
                                                     <input
@@ -2200,146 +2415,112 @@ export function App() {
                                                     />
                                                 </label>
                                                 {(builder.controls.loadBar.animationStyle === "circle" || (builder.controls.loadBar.animationStyle === "bar" && builder.controls.loadBar.fillStyle === "lines")) && (
-                                                    <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                        <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Thickness</span><span className="rangeValue">{builder.controls.loadBar.lineWidth.toFixed(0)}</span></span>
-                                                        <input
-                                                            type="range"
+                                                    <div style={{ flex: "1 1 0", minWidth: 0 }}>
+                                                        <VisualsSlider
+                                                            value={builder.controls.loadBar.lineWidth}
+                                                            onChange={(value) => updateLoadBar({ lineWidth: value })}
                                                             min={1}
                                                             max={15}
                                                             step={1}
-                                                            value={builder.controls.loadBar.lineWidth}
-                                                            onChange={(event) => updateLoadBar({ lineWidth: Number(event.target.value) })}
+                                                            lineCount={14}
                                                         />
-                                                    </label>
+                                                    </div>
                                                 )}
                                             </>
                                         )}
                                     </div>
-                                    {builder.controls.loadBar.animationStyle === "circle" && (
-                                        <>
-                                            {/* Track checkbox and properties */}
-                                            <div className="settingsRow">
-                                                <label className="checkbox">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={builder.controls.loadBar.showTrack}
-                                                        onChange={(event) => updateLoadBar({ showTrack: event.target.checked })}
-                                                    />
-                                                    Track
-                                                </label>
-                                            </div>
-                                            {builder.controls.loadBar.showTrack && (
-                                                <div className="settingsRow">
-                                                    <label className="flexColumn">
-                                                        Color
+                                    {showTrackBorderControls && (
+                                        <div className="settingsRow settingsRow--trackBorderGroup">
+                                            <div className="trackBorder-row">
+                                                <div
+                                                    className={`trackBorderDrawer ${
+                                                        builder.controls.loadBar.showTrack ? "is-active" : ""
+                                                    }`}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        className="trackBorderDrawer-toggle"
+                                                        onClick={() =>
+                                                            updateLoadBar({ showTrack: !builder.controls.loadBar.showTrack })
+                                                        }
+                                                        aria-pressed={builder.controls.loadBar.showTrack}
+                                                    >
+                                                        Track
+                                                    </button>
+                                                    <div className="trackBorderDrawer-content">
+                                                        <label className="trackBorder-field trackBorder-color">
+                                                        <span className="trackBorder-colorLabel">Color</span>
                                                         <input
                                                             type="color"
                                                             value={builder.controls.loadBar.trackColor}
                                                             onChange={(event) => updateLoadBar({ trackColor: event.target.value })}
                                                         />
                                                     </label>
-                                                    <label className="flexColumn">
-                                                        <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Thickness</span><span className="rangeValue">{builder.controls.loadBar.trackThickness.toFixed(1)}</span></span>
-                                                        <input
-                                                            type="range"
-                                                            min={1}
-                                                            max={50}
-                                                            step={0.5}
-                                                            value={builder.controls.loadBar.trackThickness}
-                                                            onChange={(event) =>
-                                                                updateLoadBar({ trackThickness: Number(event.target.value) })
-                                                            }
-                                                        />
-                                                    </label>
+                                                        <div className="trackBorder-field trackBorder-slider">
+                                                            <VisualsSlider
+                                                                value={builder.controls.loadBar.trackThickness}
+                                                                onChange={(value) => updateLoadBar({ trackThickness: value })}
+                                                                min={1}
+                                                                max={50}
+                                                                step={0.5}
+                                                                lineCount={16}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </>
-                                    )}
-                                    {builder.controls.loadBar.animationStyle === "bar" && (
-                                        <>
-                                            {/* Track checkbox and properties */}
-                                            <div className="settingsRow">
-                                                <label className="checkbox">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={builder.controls.loadBar.showTrack}
-                                                        onChange={(event) => updateLoadBar({ showTrack: event.target.checked })}
-                                                    />
-                                                    Track
-                                                </label>
                                             </div>
-                                            {builder.controls.loadBar.showTrack && (
-                                                <div className="settingsRow">
-                                                    <label className="flexColumn">
-                                                        Color
-                                                        <input
-                                                            type="color"
-                                                            value={builder.controls.loadBar.trackColor}
-                                                            onChange={(event) => updateLoadBar({ trackColor: event.target.value })}
-                                                        />
-                                                    </label>
-                                                    <label className="flexColumn">
-                                                        <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Thickness</span><span className="rangeValue">{builder.controls.loadBar.trackThickness.toFixed(1)}</span></span>
-                                                        <input
-                                                            type="range"
-                                                            min={1}
-                                                            max={50}
-                                                            step={0.5}
-                                                            value={builder.controls.loadBar.trackThickness}
-                                                            onChange={(event) =>
-                                                                updateLoadBar({ trackThickness: Number(event.target.value) })
-                                                            }
-                                                        />
-                                                    </label>
-                                                </div>
-                                            )}
-                                            {/* Border checkbox and properties */}
-                                            <div className="settingsRow">
-                                                <label className="checkbox">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={builder.controls.loadBar.showBorder}
-                                                        onChange={(event) => updateLoadBar({ showBorder: event.target.checked })}
-                                                    />
-                                                    Border
-                                                </label>
-                                            </div>
-                                            {builder.controls.loadBar.showBorder && (
-                                                <div className="settingsRow">
-                                                    <label>
-                                                        Color
+                                            <div className="trackBorder-row">
+                                                <div
+                                                    className={`trackBorderDrawer ${
+                                                        builder.controls.loadBar.showBorder ? "is-active" : ""
+                                                    }`}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        className="trackBorderDrawer-toggle"
+                                                        onClick={() =>
+                                                            updateLoadBar({ showBorder: !builder.controls.loadBar.showBorder })
+                                                        }
+                                                        aria-pressed={builder.controls.loadBar.showBorder}
+                                                    >
+                                                        Border
+                                                    </button>
+                                                    <div className="trackBorderDrawer-content">
+                                                        <label className="trackBorder-field trackBorder-color">
+                                                        <span className="trackBorder-colorLabel">Color</span>
                                                         <input
                                                             type="color"
                                                             value={builder.controls.loadBar.borderColor}
                                                             onChange={(event) => updateLoadBar({ borderColor: event.target.value })}
                                                         />
                                                     </label>
-                                                    <label>
-                                                        Thickness <span className="rangeValue">{builder.controls.loadBar.borderWidth.toFixed(0)}</span>
-                                                        <input
-                                                            type="range"
-                                                            min={1}
-                                                            max={12}
-                                                            step={1}
-                                                            value={builder.controls.loadBar.borderWidth}
-                                                            onChange={(event) => updateLoadBar({ borderWidth: Number(event.target.value) })}
-                                                        />
-                                                    </label>
+                                                        <div className="trackBorder-field trackBorder-slider">
+                                                            <VisualsSlider
+                                                                value={builder.controls.loadBar.borderWidth}
+                                                                onChange={(value) => updateLoadBar({ borderWidth: value })}
+                                                                min={1}
+                                                                max={12}
+                                                                step={1}
+                                                                lineCount={12}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </>
+                                            </div>
+                                        </div>
                                     )}
                                 </>
                             )}
-                        </SettingsGroup>
-                        <SettingsGroup
+                                </SettingsGroup>
+                            )}
+                        {activeTab === "label" && <SettingsGroup
                             title="Label"
                             icon={<TextT size={18} weight="duotone" />}
-                            open={openSettingsGroup === "label"}
-                            onToggle={() => setOpenSettingsGroup(openSettingsGroup === "label" ? null : "label")}
+                            open={activeTab === "label"}
+                            onToggle={() => setActiveTab("label")}
                         >
                             <div className="settingsRow">
-                                <label style={{ flex: "2 1 0", minWidth: 0 }}>
+                                <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                     <span style={{ marginLeft: 5 }}>Display</span>
                                     <select
                                         value={displayModeValue}
@@ -2350,6 +2531,15 @@ export function App() {
                                         <option value="numberOnly">Numbers Only</option>
                                         <option value="none">None</option>
                                     </select>
+                                </label>
+                                <label style={{ flex: "1 1 0", minWidth: 0 }}>
+                                    <span style={{ marginLeft: 5 }}>Loading text</span>
+                                    <input
+                                        type="text"
+                                        value={builder.controls.loadBar.labelText}
+                                        onChange={(event) => updateLoadBar({ labelText: event.target.value })}
+                                        placeholder="Loading"
+                                    />
                                 </label>
                             </div>
                             {builder.controls.loadBar.showLabel && (
@@ -2363,18 +2553,7 @@ export function App() {
                                                 onChange={(event) => updateLoadBar({ labelColor: event.target.value })}
                                             />
                                         </label>
-                                        <label style={{ flex: "2 1 0", minWidth: 0 }}>
-                                            <span style={{ marginLeft: 5 }}>Loading text</span>
-                                            <input
-                                                type="text"
-                                                value={builder.controls.loadBar.labelText}
-                                                onChange={(event) => updateLoadBar({ labelText: event.target.value })}
-                                                placeholder="Loading"
-                                            />
-                                        </label>
-                                    </div>
-                                    <div className="settingsRow">
-                                        <label>
+                                        <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 5 }}>Font</span>
                                             {fontFamilyOptions.length > 0 ? (
                                                 <select
@@ -2422,7 +2601,7 @@ export function App() {
                                                 />
                                             )}
                                         </label>
-                                        <label>
+                                        <label style={{ flex: "1 1 0", minWidth: 0 }}>
                                             <span style={{ marginLeft: 5 }}>Font size</span>
                                             <NumberInput
                                                 value={builder.controls.loadBar.labelFontSize}
@@ -2530,7 +2709,18 @@ export function App() {
                                             )}
                                         </>
                                     )}
-                                    {supportsXAlignment && (
+                                </>
+                                )}
+                        </SettingsGroup>}
+                        {activeTab === "positioning" && (
+                            <SettingsGroup
+                                title="Positioning"
+                                icon={<ArrowsOut size={18} weight="duotone" />}
+                                open={activeTab === "positioning"}
+                                onToggle={() => setActiveTab("positioning")}
+                            >
+                                {supportsXAlignment ? (
+                                    <>
                                         <div className="settingsRow settingsRow--alignment">
                                             <div className="alignmentGroup alignmentGroup-grid">
                                                 <span className="alignmentGroup-title">Align</span>
@@ -2565,15 +2755,37 @@ export function App() {
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
-                                </>
+                                        {(builder.controls.loadBar.animationStyle === "circle" ||
+                                            builder.controls.loadBar.animationStyle === "bar") && (
+                                            <div className="settingsRow">
+                                                <button
+                                                    type="button"
+                                                    className={`toggleButton trackBorderToggle ${
+                                                        builder.controls.loadBar.startAtLabel ? "is-active" : ""
+                                                    }`}
+                                                    style={{ whiteSpace: "nowrap", width: "auto", minWidth: "auto", maxWidth: "none", flex: "0 0 auto" }}
+                                                    onClick={() =>
+                                                        updateLoadBar({ startAtLabel: !builder.controls.loadBar.startAtLabel })
+                                                    }
+                                                    aria-pressed={builder.controls.loadBar.startAtLabel}
+                                                >
+                                                    Start at label
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <p className="hintText" style={{ padding: "0 16px", margin: 0 }}>
+                                        Positioning is not available for text animations. Switch to a bar or circle style to adjust alignment and offset.
+                                    </p>
                                 )}
-                        </SettingsGroup>
-                        <SettingsGroup 
+                            </SettingsGroup>
+                        )}
+                        {activeTab === "gate" && <SettingsGroup 
                             title="Gate behavior" 
                             icon={<Barricade size={18} weight="duotone" />}
-                            open={openSettingsGroup === "gate"}
-                            onToggle={() => setOpenSettingsGroup(openSettingsGroup === "gate" ? null : "gate")}
+                            open={activeTab === "gate"}
+                            onToggle={() => setActiveTab("gate")}
                         >
                             <div className="settingsRow settingsRow--triple">
                                 <label className="inlineLabel">
@@ -2611,41 +2823,34 @@ export function App() {
                                     </div>
                                 </label>
                             </div>
-                            <div className="settingsRow">
-                                <label className="checkbox">
-                                <input
-                                    type="checkbox"
-                                    checked={builder.controls.oncePerSession}
-                                    onChange={(event) => updateControls("oncePerSession", event.target.checked)}
-                                />
-                                <span>Run once<br />per session</span>
-                            </label>
-                                <label className="checkbox">
-                                    <input
-                                        type="checkbox"
-                                        checked={builder.controls.hideWhenComplete}
-                                        onChange={(event) => updateControls("hideWhenComplete", event.target.checked)}
-                                    />
-                                Hide when complete
-                                </label>
+                            <div className="settingsRow settingsRow--trackBorderGroup" style={{ gap: 10, flexWrap: "nowrap" }}>
+                                <button
+                                    type="button"
+                                    className={`toggleButton trackBorderToggle ${builder.controls.oncePerSession ? "is-active" : ""}`}
+                                    style={{ whiteSpace: "nowrap", width: "auto", minWidth: "auto", maxWidth: "none", flex: "1 1 0" }}
+                                    onClick={() => updateControls("oncePerSession", !builder.controls.oncePerSession)}
+                                    aria-pressed={builder.controls.oncePerSession}
+                                >
+                                    Run once per session
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`toggleButton trackBorderToggle ${builder.controls.hideWhenComplete ? "is-active" : ""}`}
+                                    style={{ whiteSpace: "nowrap", width: "auto", minWidth: "auto", maxWidth: "none", flex: "1 1 0" }}
+                                    onClick={() => updateControls("hideWhenComplete", !builder.controls.hideWhenComplete)}
+                                    aria-pressed={builder.controls.hideWhenComplete}
+                                >
+                                    Hide when complete
+                                </button>
                             </div>
-                        </SettingsGroup>
+                        </SettingsGroup>}
                     </section>
                 </article>
             </section>
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 16, marginBottom: 8 }}>
-                <button 
-                    type="button" 
-                    className="framer-button-primary" 
-                    onClick={handleInsert}
-                    style={{ width: "250px" }}
-                >
-                    Insert
-                </button>
-            </div>
+        </div>
             <footer className="loadingFooter loadingFooter--main">
                 <p>
-                    © Mojave Studio LLC — Custom Automated Web Design Experts<br />
+                    © Mojave Studio LLC — Custom Automated Web Design Experts —{" "}
                     <a href="https://mojavestud.io" target="_blank" rel="noopener noreferrer">mojavestud.io</a>
                 </p>
             </footer>
@@ -2660,22 +2865,10 @@ type SettingsGroupProps = {
     onToggle: () => void
 }
 
-function SettingsGroup({ title, children, icon, open, onToggle }: SettingsGroupProps) {
+function SettingsGroup({ children }: SettingsGroupProps) {
     return (
-        <section className={`settingsGroup ${open ? "is-open" : "is-closed"}`}>
-            <button
-                type="button"
-                className="settingsGroup-toggle"
-                onClick={onToggle}
-                aria-expanded={open}
-            >
-                <span className="settingsGroup-label">
-                    {icon && <span className="settingsGroup-icon">{icon}</span>}
-                    {title}
-                </span>
-                <ChevronIcon className="settingsGroup-chevron" />
-            </button>
-            {open && <div className="settingsGrid">{children}</div>}
+        <section className="settingsGroup is-open settingsGroup--static">
+            <div className="settingsGrid">{children}</div>
         </section>
     )
 }
@@ -2731,8 +2924,8 @@ function SettingsPopover({ email, projectName, onSignOut, onTriggerRefChange }: 
         if (!triggerRef.current || typeof window === "undefined") return
         const rect = triggerRef.current.getBoundingClientRect()
         const panelWidth = 250
-        // Position directly to the left of the trigger, aligned with top
-        const safeLeft = Math.max(12, rect.left - panelWidth - 8 + 30) // 8px gap from trigger, moved 30px right
+        // Position directly to the right of the trigger, aligned with top
+        const safeLeft = Math.min(window.innerWidth - panelWidth - 12, rect.right + 8) // 8px gap from trigger
         const top = rect.top // Align with trigger's top
         setPanelPos({ top, left: safeLeft })
     }, [])
@@ -2964,7 +3157,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     const loadBar = controls.loadBar
 
     useEffect(() => {
-        if (loadBar.animationStyle !== "circle" || !loadBar.perpetual || typeof window === "undefined") {
+        const isPerpetualBarOrCircle =
+            (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
+        if (!isPerpetualBarOrCircle || typeof window === "undefined") {
             setPerpetualProgress(0)
             return
         }
@@ -3016,7 +3211,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         }
     }, [loadBar.animationStyle, loadBar.textPerpetual, loadBar.textFillStyle])
     const labelProgressValue =
-        loadBar.animationStyle === "circle" && loadBar.perpetual ? perpetualProgress * 100 : progress
+        (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
+            ? perpetualProgress * 100
+            : progress
     const rawLabelText = loadBar.labelText
     const baseLabelText =
         rawLabelText !== undefined
@@ -3275,33 +3472,48 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         bottom: barExtraBottom,
         left: barSideMargin,
     }
+    // For right corners: bar moves opposite to label to create gap effect
+    // For left corners and edges: vertical offsets can affect padding normally
+    const isRightCorner = loadBar.labelPosition === "right" && loadBar.labelOutsideDirection !== "center"
     const topOffsetShift =
         labelOutside && loadBar.labelOutsideDirection === "top"
-            ? Math.max(0, labelOffsetY)
+            ? isRightCorner 
+                ? Math.max(0, -labelOffsetY)  // Opposite direction for right corners
+                : Math.max(0, labelOffsetY)
             : 0
     const bottomOffsetShift =
         labelOutside && loadBar.labelOutsideDirection === "bottom"
-            ? Math.max(0, -labelOffsetY)
+            ? isRightCorner
+                ? Math.max(0, labelOffsetY)   // Opposite direction for right corners
+                : Math.max(0, -labelOffsetY)
             : 0
+    // For left corners: negative X offset should increase left padding (bar moves left to keep label visible)
+    // For right corners: bar should stay fixed, label moves via transform only
     const leftOffsetShift =
-        labelOutside && loadBar.labelPosition === "left"
-            ? Math.max(0, labelOffsetX)
-            : 0
-    const rightOffsetShift =
-        labelOutside && loadBar.labelPosition === "right"
+        labelOutside && loadBar.labelPosition === "left" && loadBar.labelOutsideDirection !== "center"
             ? Math.max(0, -labelOffsetX)
             : 0
+    // Right corners: don't affect padding at all (bar stays fixed)
+    const rightOffsetShift = 0
+    
+    // For preview rendering, don't let vertical offsets affect horizontal padding
+    // This prevents the bar from shrinking when Y offset changes
+    const horizontalLeftOffsetShift = leftOffsetShift
+    const horizontalRightOffsetShift = rightOffsetShift
+    const verticalTopOffsetShift = topOffsetShift
+    const verticalBottomOffsetShift = bottomOffsetShift
+    
     if (labelOutside && label) {
         // Vertical reserve for top/bottom rows
         if (loadBar.labelOutsideDirection === "top") {
             outsidePadding.top = Math.max(
                 outsidePadding.top,
-                outsideLabelSize.height + outsideSpacing + topOffsetShift
+                outsideLabelSize.height + outsideSpacing + verticalTopOffsetShift
             )
         } else if (loadBar.labelOutsideDirection === "bottom") {
             outsidePadding.bottom = Math.max(
                 outsidePadding.bottom,
-                outsideLabelSize.height + outsideSpacing + bottomOffsetShift
+                outsideLabelSize.height + outsideSpacing + verticalBottomOffsetShift
             )
         }
 
@@ -3309,12 +3521,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         if (loadBar.labelPosition === "left") {
             outsidePadding.left = Math.max(
                 outsidePadding.left,
-                outsideLabelSize.width + outsideSpacing + leftOffsetShift
+                outsideLabelSize.width + outsideSpacing + horizontalLeftOffsetShift
             )
         } else if (loadBar.labelPosition === "right") {
             outsidePadding.right = Math.max(
                 outsidePadding.right,
-                outsideLabelSize.width + outsideSpacing + rightOffsetShift
+                outsideLabelSize.width + outsideSpacing + horizontalRightOffsetShift
             )
         }
     }
@@ -3322,7 +3534,13 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     // Base dimensions and padded box
     const baseWidth = Math.max(1, width)
     const baseHeight = Math.max(1, height)
-    const clampedWidth = baseWidth + outsidePadding.left + outsidePadding.right
+    
+    // For preview component, use fixed dimensions without offset-based padding
+    // Offsets should only affect positioning, not the overall size
+    const useFixedDimensions = true // Flag to indicate we're in preview mode
+    const clampedWidth = useFixedDimensions 
+        ? baseWidth 
+        : baseWidth + outsidePadding.left + outsidePadding.right
 
     // For bar mode, ensure clampedHeight accounts for thickness, border, padding, and vertical label offset reserve
     const barLabelVerticalReserve =
@@ -3332,22 +3550,28 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
           (loadBar.showBorder ? loadBar.borderWidth * 2 : 0) +
           (loadBar.fillStyle === "lines" ? 4 : 0) // 2px padding top + 2px bottom
         : 0
-    const clampedHeight = Math.max(
-        baseHeight + outsidePadding.top + outsidePadding.bottom,
-        barHeight + outsidePadding.top + outsidePadding.bottom + barLabelVerticalReserve
-    )
+    const clampedHeight = useFixedDimensions
+        ? baseHeight
+        : Math.max(
+            baseHeight + outsidePadding.top + outsidePadding.bottom,
+            barHeight + outsidePadding.top + outsidePadding.bottom + barLabelVerticalReserve
+        )
     const availableWidth = containerWidth ?? clampedWidth
     // Scale against the fully padded width so outside labels don't get clipped
     const scale = Math.min(1, availableWidth / (clampedWidth || 1))
     const scaledWidth = clampedWidth * scale
     const scaledHeight = clampedHeight * scale
-    const contentWidth = Math.max(0, clampedWidth - outsidePadding.left - outsidePadding.right)
+    const contentWidth = useFixedDimensions 
+        ? baseWidth 
+        : Math.max(0, clampedWidth - outsidePadding.left - outsidePadding.right)
     const wrapperTop = outsidePadding.top - bottomOffsetShift
     const wrapperBottom = outsidePadding.bottom
-    const baseContentHeight = Math.max(
-        0,
-        clampedHeight - outsidePadding.top - outsidePadding.bottom
-    )
+    const baseContentHeight = useFixedDimensions
+        ? baseHeight
+        : Math.max(
+            0,
+            clampedHeight - outsidePadding.top - outsidePadding.bottom
+        )
     const contentHeight = Math.max(barHeight, baseContentHeight)
     const contentTopActual = wrapperTop
     const contentBottomActual = wrapperTop + contentHeight
@@ -3457,7 +3681,13 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             : loadBar.labelOutsideDirection === "bottom"
             ? contentCenterY + LABEL_VERTICAL_OFFSET
             : contentCenterY
-    const adjustedOutsideCenterY = baseOutsideCenterY - labelOffsetY
+    // For left corner positions (top-left, bottom-left), bar moves to keep label in viewport
+    // For right corner positions (top-right, bottom-right), bar stays fixed and label moves
+    // For edge positions (top-center, bottom-center), bar stays fixed and label moves
+    const isLeftCornerPosition = loadBar.labelPosition === "left" && loadBar.labelOutsideDirection !== "center"
+    const isRightCornerPosition = loadBar.labelPosition === "right" && loadBar.labelOutsideDirection !== "center"
+    const shouldMoveLabel = true // Always move label via transform
+    const adjustedOutsideCenterY = baseOutsideCenterY - (shouldMoveLabel ? labelOffsetY : 0)
     outsideLabelStyle.top = adjustedOutsideCenterY - estimatedLabelHeight / 2
     const outsideHorizontal = loadBar.labelPosition
     if (outsideHorizontal === "left") {
@@ -3488,24 +3718,25 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         ? contentHeight + outsidePadding.top + outsidePadding.bottom
         : clampedHeight
     const rootStyle: CSSProperties = {
-        width: clampedWidth,
-        height: Math.max(clampedHeight, minRootHeight),
-        minHeight: Math.max(clampedHeight, minRootHeight),
+        width: useFixedDimensions ? baseWidth : clampedWidth,
+        height: useFixedDimensions ? baseHeight : Math.max(clampedHeight, minRootHeight),
+        minHeight: useFixedDimensions ? baseHeight : Math.max(clampedHeight, minRootHeight),
         position: "relative",
         boxSizing: "border-box",
-        paddingTop: outsidePadding.top,
-        paddingRight: outsidePadding.right,
-        paddingBottom: outsidePadding.bottom,
-        paddingLeft: outsidePadding.left,
+        paddingTop: useFixedDimensions ? 0 : outsidePadding.top,
+        paddingRight: useFixedDimensions ? 0 : outsidePadding.right,
+        paddingBottom: useFixedDimensions ? 0 : outsidePadding.bottom,
+        paddingLeft: useFixedDimensions ? 0 : outsidePadding.left,
         margin: 0,
     }
 
     const contentWrapperStyle: CSSProperties = {
-        position: "absolute",
-        top: wrapperTop,
-        left: outsidePadding.left,
-        right: outsidePadding.right,
-        bottom: wrapperBottom,
+        position: useFixedDimensions ? "absolute" : "absolute",
+        top: useFixedDimensions ? "50%" : wrapperTop,
+        left: useFixedDimensions ? "50%" : outsidePadding.left,
+        right: useFixedDimensions ? "auto" : outsidePadding.right,
+        bottom: useFixedDimensions ? "auto" : wrapperBottom,
+        transform: useFixedDimensions ? "translate(-50%, -50%)" : "none",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -3514,7 +3745,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
 
     const progressValue = Math.max(0, Math.min(1, progress / 100))
     const effectiveProgress =
-        loadBar.animationStyle === "circle" && loadBar.perpetual ? perpetualProgress : progressValue
+        (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
+            ? perpetualProgress
+            : progressValue
     const resolvedTextFillStyle =
         loadBar.textFillStyle === "static"
             ? "static"
@@ -3696,10 +3929,8 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
 
         if (loadBar.animationStyle === "circle") {
             const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
-            // Compensate for reduced container size to keep circle the same visual size
-            const boxSizeReduction = 20
-            const circleBoxSize = Math.max(0, Math.min(baseCircleSize - 12 + boxSizeReduction, baseCircleSize)) // Add back the reduction, but cap at container size
-            const circleSize = circleBoxSize
+            // Reduce circle size to 60% of available space, then shrink by another 20%
+            const circleSize = baseCircleSize * 0.6 * 0.8
             const strokeWidth = loadBar.lineWidth
             const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
             const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
@@ -3767,9 +3998,10 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         alignItems: "center",
                         justifyContent: "center",
                         position: "relative",
+                        transform: "translateY(-100px)",
                     }}
                 >
-                    <svg width={circleSize} height={circleSize} style={{ transform: `rotate(${rotationDeg}deg)` }}>
+                    <svg width={circleSize} height={circleSize} style={{ transform: `translateY(-10px) rotate(${rotationDeg}deg)` }}>
                         {loadBar.showTrack && loadBar.fillStyle !== "lines" && (
                             <circle
                                 cx={circleSize / 2}
@@ -3915,7 +4147,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
 
 
         if (loadBar.fillStyle === "solid") {
-            const windowWidth = 300
+            const windowWidth = 380
             const windowHeight = 150
             const containerPadding = 5
             const baseGap = 5
@@ -3994,7 +4226,8 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         loadBar.labelPosition,
                         anchorXCandidate,
                         measuredLabelWidth,
-                        offsetForBounds
+                        offsetForBounds,
+                        loadBar.labelPosition === "left" && offsetForBounds < 0 // Only shrink bar for negative offsets
                     )
                     let adjusted = false
                     if (bounds.left < 0) {
@@ -4121,16 +4354,25 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             }
             
             // Make bar width behavior match GitHub's version: no width adjustment for any position
-            const barWidthAdjustment = 0
+            // Except for left position with negative offset - shrink from left only
+            // For left position with positive offset, bar stays fixed and label moves
+            let barWidthAdjustment = 0
+            let leftOnlyAdjustment = 0
+            
+            if (loadBar.labelPosition === "left" && labelOffsetXValue < 0) {
+                // When left label is offset left, shrink bar from left side only
+                leftOnlyAdjustment = Math.min(-labelOffsetXValue, windowWidth - minBarWidth - reserveRight)
+            }
+            // Note: When left label is offset right (positive offsetX), bar stays in place and label moves
             
             // Final bar width in preview - reduced by both reserves and X offset adjustment
             const previewBarWidth = Math.max(
                 minBarWidth,
-                windowWidth - reserveLeft - reserveRight - barWidthAdjustment
+                windowWidth - reserveLeft - reserveRight - barWidthAdjustment - leftOnlyAdjustment
             )
             
-            // Bar starts after left reserve
-            const previewBarOffsetX = reserveLeft
+            // Bar starts after left reserve, plus any left-only adjustment (only for negative offsets)
+            const previewBarOffsetX = reserveLeft + 40 + leftOnlyAdjustment
             
             const barOffsetX = previewBarOffsetX
             const barLeft = barOffsetX
@@ -4148,13 +4390,30 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             // Therefore: bar center from top of outer container = barExtraTop + (windowHeight - barExtraTop - barExtraBottom) / 2
             const innerDivHeight = windowHeight - barExtraTop - barExtraBottom
             const barCenterY = barExtraTop + innerDivHeight / 2
+            // Calculate vertical offset for bar positioning.
+            // For right-corner labels, the bar should move opposite the label to mimic a gap forming.
+            // Only apply for right corner positions, not left corners or edges.
+            const shouldOffsetBarForGap = isOutside && loadBar.labelOutsideDirection !== "center"
+            const yOffset = labelOffsetY || 0
+            const verticalBarOffset = shouldOffsetBarForGap
+                ? loadBar.labelOutsideDirection === "top"
+                    ? yOffset > 0
+                        ? -yOffset
+                        : 0
+                    : loadBar.labelOutsideDirection === "bottom"
+                        ? yOffset < 0
+                            ? -yOffset
+                            : 0
+                        : 0
+                : 0
+            
             const centeredWrapperStyle: CSSProperties = {
                 width: "100%",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                paddingTop: barExtraTop,
-                paddingBottom: barExtraBottom,
+                paddingTop: barExtraTop - verticalBarOffset,
+                paddingBottom: barExtraBottom + verticalBarOffset,
                 boxSizing: "border-box",
                 position: "relative", // Labels positioned relative to wrapper to match bar coordinate system
             }
@@ -4189,7 +4448,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     background: trackBackground,
                                     position: "absolute",
                                     top: "50%",
-                                    left: isLabelCenter ? "50%" : `${previewBarOffsetX}px`,
+                                    left: isLabelCenter ? "calc(50% + 40px)" : `${previewBarOffsetX}px`,
                                     transform: `translateY(-50%)${isLabelCenter ? " translateX(-50%)" : ""}`,
                                     overflow: "visible",
                                 }}
@@ -4344,7 +4603,8 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         loadBar.labelPosition,
                         anchorXCandidate,
                         measuredLabelWidth,
-                        labelOffsetXValue
+                        labelOffsetXValue,
+                        loadBar.labelPosition === "left" && labelOffsetXValue < 0 // Only shrink bar for negative offsets
                     )
                     let adjusted = false
                     if (bounds.left < 0) {
@@ -4377,16 +4637,25 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             }
             
             // Make bar width behavior match GitHub's version: no width adjustment for any position
-            const barWidthAdjustment = 0
+            // Except for left position with negative offset - shrink from left only
+            // For left position with positive offset, bar stays fixed and label moves
+            let barWidthAdjustment = 0
+            let leftOnlyAdjustment = 0
+            
+            if (loadBar.labelPosition === "left" && labelOffsetXValue < 0) {
+                // When left label is offset left, shrink bar from left side only
+                leftOnlyAdjustment = Math.min(-labelOffsetXValue, windowWidth - minBarWidth - reserveRight)
+            }
+            // Note: When left label is offset right (positive offsetX), bar stays in place and label moves
             
             // Final bar width in preview - reduced by both reserves and X offset adjustment
             const previewBarWidth = Math.max(
                 minBarWidth,
-                windowWidth - reserveLeft - reserveRight - barWidthAdjustment
+                windowWidth - reserveLeft - reserveRight - barWidthAdjustment - leftOnlyAdjustment
             )
             
-            // Bar starts after left reserve
-            const previewBarOffsetX = reserveLeft
+            // Bar starts after left reserve, plus any left-only adjustment (only for negative offsets)
+            const previewBarOffsetX = reserveLeft + 40 + leftOnlyAdjustment
             
             const barOffsetX = previewBarOffsetX
             const barLeft = barOffsetX
@@ -4414,13 +4683,30 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 padding: 2,
             }
 
+	            // Calculate vertical offset for bar positioning.
+	            // For right-corner labels, the bar should move opposite the label to mimic a gap forming.
+	            // Only apply for right corner positions, not left corners or edges.
+	            const shouldOffsetBarForGap = isOutside && loadBar.labelOutsideDirection !== "center"
+	            const yOffset = labelOffsetY || 0
+	            const verticalBarOffset = shouldOffsetBarForGap
+	                ? loadBar.labelOutsideDirection === "top"
+	                    ? yOffset > 0
+	                        ? -yOffset
+	                        : 0
+	                    : loadBar.labelOutsideDirection === "bottom"
+	                        ? yOffset < 0
+	                            ? -yOffset
+	                            : 0
+	                        : 0
+	                : 0
+
             const centeredWrapperStyleLines: CSSProperties = {
                 width: "100%",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                paddingTop: barExtraTop,
-                paddingBottom: barExtraBottom,
+                paddingTop: barExtraTop - verticalBarOffset,
+                paddingBottom: barExtraBottom + verticalBarOffset,
                 boxSizing: "border-box",
                 position: "relative", // So outside labels are positioned relative to wrapper, matching bar coordinate system
             }
@@ -4455,7 +4741,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     background: "transparent",
                                     position: "absolute",
                                     top: "50%",
-                                    left: isLabelCenter ? "50%" : `${previewBarOffsetX}px`,
+                                    left: isLabelCenter ? "calc(50% + 40px)" : `${previewBarOffsetX}px`,
                                     transform: `translateY(-50%)${isLabelCenter ? " translateX(-50%)" : ""}`,
                                     overflow: "visible",
                                 }}
@@ -4639,17 +4925,21 @@ const computePreviewOutsideLabelBounds = (
     position: LabelPosition,
     anchorX: number,
     labelWidth: number,
-    offsetX: number
+    offsetX: number,
+    shrinkBarInstead?: boolean
 ) => {
+    // When shrinking the bar instead of moving the label, don't apply offset to label
+    const effectiveOffsetX = shrinkBarInstead ? 0 : offsetX
+    
     if (position === "left") {
-        const left = anchorX + offsetX
+        const left = anchorX + effectiveOffsetX
         return { left, right: left + labelWidth }
     }
     if (position === "right") {
-        const right = anchorX + offsetX
+        const right = anchorX + effectiveOffsetX
         return { left: right - labelWidth, right }
     }
-    const left = anchorX - labelWidth / 2 + offsetX
+    const left = anchorX - labelWidth / 2 + effectiveOffsetX
     return { left, right: left + labelWidth }
 }
 

@@ -7,8 +7,8 @@
  * - Intrinsic sizing only (Framer handles layout/stacking)
  */
 
-/** @framerIntrinsicWidth  300 */
-/** @framerIntrinsicHeight 300 */
+/** @framerIntrinsicWidth  600 */
+/** @framerIntrinsicHeight 50 */
 /** @framerSupportedLayoutWidth any-prefer-fixed */
 /** @framerSupportedLayoutHeight any-prefer-fixed */
 /** @framerDisableUnlink */
@@ -886,7 +886,7 @@ export default function Loading(p: Props) {
                 return { width: 300, height: 300 }
             case "bar": {
                 const barHeightForIntrinsic = Math.max(
-                    barContainerHeight,
+                    thickness,
                     estimatedLabelHeight
                 )
                 const requiredHeight =
@@ -1083,47 +1083,52 @@ export default function Loading(p: Props) {
         rootStyle.display = "none"
     }
 
-    // Perpetual animation state for circle mode
+    // Perpetual animation state for circle/bar modes
     const [perpetualProgress, setPerpetualProgress] = React.useState(0)
     
     React.useEffect(() => {
-        if (animationStyle === "circle" && perpetual) {
-            let animationId: number | null = null
-            let startTime: number | null = null
-            let isAnimating = true
-            
-            const animate = (timestamp: number) => {
-                if (!startTime) startTime = timestamp
-                const elapsed = timestamp - startTime
-                
-                // Animation duration (1 second), then gap
-                const animationDuration = 1000 // 1 second for full cycle
-                const gapDuration = perpetualGap * 1000 // gap in milliseconds
-                const cycleDuration = animationDuration + gapDuration
-                
-                const cycleTime = elapsed % cycleDuration
-                
-                if (cycleTime < animationDuration) {
-                    // During animation phase
-                    const progress = cycleTime / animationDuration
-                    setPerpetualProgress(progress)
-                } else {
-                    // During gap phase
-                    setPerpetualProgress(0)
-                }
-                
-                if (isAnimating) {
-                    animationId = requestAnimationFrame(animate)
-                }
+        const isPerpetualBarOrCircle =
+            (animationStyle === "circle" || animationStyle === "bar") && perpetual
+        if (!isPerpetualBarOrCircle) {
+            setPerpetualProgress(0)
+            return
+        }
+
+        let animationId: number | null = null
+        let startTime: number | null = null
+        let isAnimating = true
+
+        const animate = (timestamp: number) => {
+            if (!startTime) startTime = timestamp
+            const elapsed = timestamp - startTime
+
+            // Animation duration (1 second), then gap
+            const animationDuration = 1000 // 1 second for full cycle
+            const gapDuration = perpetualGap * 1000 // gap in milliseconds
+            const cycleDuration = animationDuration + gapDuration
+
+            const cycleTime = elapsed % cycleDuration
+
+            if (cycleTime < animationDuration) {
+                // During animation phase
+                const progress = cycleTime / animationDuration
+                setPerpetualProgress(progress)
+            } else {
+                // During gap phase
+                setPerpetualProgress(0)
             }
-            
-            animationId = requestAnimationFrame(animate)
-            
-            return () => {
-                isAnimating = false
-                if (animationId !== null) {
-                    cancelAnimationFrame(animationId)
-                }
+
+            if (isAnimating) {
+                animationId = requestAnimationFrame(animate)
+            }
+        }
+
+        animationId = requestAnimationFrame(animate)
+
+        return () => {
+            isAnimating = false
+            if (animationId !== null) {
+                cancelAnimationFrame(animationId)
             }
         }
     }, [animationStyle, perpetual, perpetualGap])
@@ -1180,9 +1185,17 @@ export default function Loading(p: Props) {
         }
     }, [progress, perpetual, animationStyle, perpetualProgress])
     
-    const progressValue = perpetual && animationStyle === "circle" 
-        ? perpetualProgress 
+    const progressValue = perpetual && (animationStyle === "circle" || animationStyle === "bar")
+        ? perpetualProgress
         : currentProgress
+    const barTransformOrigin =
+        startAtLabel && animationStyle === "bar"
+            ? labelPosition === "right"
+                ? "100% 50%"
+                : labelPosition === "center"
+                ? "50% 50%"
+                : "0% 50%"
+            : "0% 50%"
     const textFillProgress =
         animationStyle === "text" && textPerpetual && progressValue < 0.999
             ? textPerpetualProgress
@@ -1366,11 +1379,11 @@ export default function Loading(p: Props) {
             const strokePadding = maxStroke / 2 + 2 // Half stroke width on each side + 2px safety margin
             const availableSize = Math.max(0, baseCircleSize - strokePadding * 2)
             
-            // The SVG size should be the available size (this is the viewport)
-            const svgSize = availableSize
+            // Reduce circle size to 60% of available space
+            const svgSize = availableSize * 0.6
             
             // The circle radius is half the available size (stroke will extend from this)
-            const circleRadius = Math.max(0, availableSize / 2)
+            const circleRadius = Math.max(0, svgSize / 2)
             
             // The actual circle path size (for positioning calculations)
             const circleSize = svgSize
@@ -1426,6 +1439,7 @@ export default function Loading(p: Props) {
                     justifyContent: "center",
                     position: "relative",
                     overflow: "visible", // Ensure stroke isn't clipped
+                    transform: "translateY(-100px)",
                 }}>
                     <svg
                         width={svgSize}
@@ -1726,11 +1740,13 @@ export default function Loading(p: Props) {
                 }
             }
 
-            const barWidth = Math.max(
+            const baseBarWidth = Math.max(
                 minBarWidth,
                 contentWidth - reserveLeft - reserveRight - barWidthAdjustment
             )
-            const barOffsetX = reserveLeft
+            const barWidth = Math.max(minBarWidth, baseBarWidth + 140)
+            const extraWidth = Math.max(0, barWidth - baseBarWidth)
+            const barOffsetX = reserveLeft - extraWidth / 2
             const barLeft = barOffsetX
             const barRight = barOffsetX + barWidth
             const barCenterX = barOffsetX + barWidth / 2
@@ -1877,8 +1893,8 @@ export default function Loading(p: Props) {
                                         height: "100%",
                                         background: barColor,
                                         borderRadius: barRadius,
-                                        transformOrigin: "left center",
-                                        scaleX: progress,
+                                        transformOrigin: barTransformOrigin,
+                                        scaleX: progressValue,
                                     }}
                                 />
                             </div>
@@ -2453,8 +2469,10 @@ addPropertyControls(Loading, {
         type: ControlType.Boolean,
         title: "Start at Label",
         defaultValue: DEFAULT_LOAD_BAR.startAtLabel,
-        hidden: (bar: any = {}) =>
-          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "circle",
+        hidden: (bar: any = {}) => {
+          const anim = bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
+          return anim !== "circle" && anim !== "bar"
+        },
       },
             barRadius: {
                 type: ControlType.Number,
