@@ -3432,10 +3432,11 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         }
 
         // Center positions (left/center/right on center row, and top/bottom center):
-        // apply X/Y offsets directly as transforms so label moves like center-center (no bar shrink)
+        // apply X offset directly as a transform so label moves like center-center (no bar shrink).
+        // For Y: top/bottom rows already bake labelOffsetY into anchorY, so only apply Y as a transform on the center row.
         if (isCenterPosition) {
             if (effectiveOffsetX !== 0) transforms.push(`translateX(${effectiveOffsetX}px)`)
-            if (labelOffsetY) transforms.push(`translateY(${-labelOffsetY}px)`)
+            if (axisY === 0 && labelOffsetY) transforms.push(`translateY(${-labelOffsetY}px)`)
         } else {
             // Corner positions: apply x offset directly without clamping (from GitHub version)
             // This preserves the working corner x offset behavior
