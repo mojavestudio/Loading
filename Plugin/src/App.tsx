@@ -164,6 +164,7 @@ const NumberInput = ({
     
     return (
         <div
+            className="numberInput"
             style={{
                 display: "flex",
                 alignItems: "center",
@@ -2801,44 +2802,44 @@ export function App() {
                             open={activeTab === "gate"}
                             onToggle={() => setActiveTab("gate")}
                         >
-                            <div className="settingsRow settingsRow--triple">
-                                <label className="inlineLabel">
-                                    <span style={{ marginLeft: -40 }}>Minimum</span>
-                                    <NumberInput
-                                        value={builder.controls.minSeconds}
-                                        onChange={(value) => updateControls("minSeconds", value)}
-                                        min={0}
-                                        max={10}
-                                        step={0.1}
-                                        style={{ width: "100%", minWidth: 0 }}
-                                    />
-                                </label>
-                                <label className="inlineLabel">
-                                    <span style={{ marginLeft: -40 }}>Timeout</span>
-                                    <NumberInput
-                                        value={builder.controls.timeoutSeconds}
-                                        onChange={(value) => updateControls("timeoutSeconds", value)}
-                                        min={1}
-                                        max={60}
-                                        step={1}
-                                        style={{ width: "100%", minWidth: 0 }}
-                                    />
-                                </label>
-                                <label className="inlineLabel">
-                                    <span style={{ marginLeft: -25 }}>Finish delay</span>
-                                    <div className="inlineLabel-unitWrapper">
-                                        <NumberInput
-                                            value={builder.controls.loadBar.finishDelay}
-                                            onChange={(value) => updateLoadBar({ finishDelay: value })}
-                                            min={0}
-                                            max={2}
-                                            step={0.05}
-                                            style={{ width: "100%", minWidth: 0 }}
-                                        />
-                                        <span className="inlineLabel-unit">s</span>
-                                    </div>
-                                </label>
-                            </div>
+	                            <div className="settingsRow settingsRow--gateTriple">
+	                                <div className="gateField">
+	                                    <div className="gateField-label">Minimum</div>
+	                                    <NumberInput
+	                                        value={builder.controls.minSeconds}
+	                                        onChange={(value) => updateControls("minSeconds", value)}
+	                                        min={0}
+	                                        max={10}
+	                                        step={0.1}
+	                                        style={{ width: "100%", minWidth: 0 }}
+	                                    />
+	                                </div>
+	                                <div className="gateField">
+	                                    <div className="gateField-label">Timeout</div>
+	                                    <NumberInput
+	                                        value={builder.controls.timeoutSeconds}
+	                                        onChange={(value) => updateControls("timeoutSeconds", value)}
+	                                        min={1}
+	                                        max={60}
+	                                        step={1}
+	                                        style={{ width: "100%", minWidth: 0 }}
+	                                    />
+	                                </div>
+	                                <div className="gateField">
+	                                    <div className="gateField-label">Finish delay</div>
+	                                    <div className="inlineLabel-unitWrapper gateField-unitWrapper">
+	                                        <NumberInput
+	                                            value={builder.controls.loadBar.finishDelay}
+	                                            onChange={(value) => updateLoadBar({ finishDelay: value })}
+	                                            min={0}
+	                                            max={2}
+	                                            step={0.05}
+	                                            style={{ width: "100%", minWidth: 0, marginLeft: 0 }}
+	                                        />
+	                                        <span className="inlineLabel-unit">s</span>
+	                                    </div>
+	                                </div>
+	                            </div>
                             <div className="settingsRow settingsRow--trackBorderGroup" style={{ gap: 10, flexWrap: "nowrap" }}>
                                 <button
                                     type="button"

@@ -1133,10 +1133,10 @@ button:focus-visible {
 }
 
 .trackBorderToggle {
-    width: 78px;
-    min-width: 78px;
-    max-width: 78px;
-    flex: 0 0 78px;
+    width: 63px;
+    min-width: 63px;
+    max-width: 63px;
+    flex: 0 0 63px;
     justify-content: center;
 }
 
@@ -1146,6 +1146,36 @@ button:focus-visible {
     flex-wrap: wrap;
     width: 100%;
     margin: 0;
+}
+
+.settingsRow.settingsRow--gateTriple {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+}
+
+.gateField {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.gateField-label {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-secondary);
+    text-align: left;
+    white-space: nowrap;
+    font-family: monospace;
+    margin-left: 0;
+}
+
+.gateField-unitWrapper {
+    width: 100%;
 }
 
 .settingsRow.settingsRow--two {
@@ -1624,9 +1654,14 @@ button:focus-visible {
     min-width: 0;
 }
 
+.inlineLabel .numberInput {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 .inlineLabel-unitWrapper {
     position: relative;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
 }
 
