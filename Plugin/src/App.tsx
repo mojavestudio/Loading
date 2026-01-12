@@ -2810,6 +2810,7 @@ export function App() {
                                         min={0}
                                         max={10}
                                         step={0.1}
+                                        style={{ width: "100%", minWidth: 0 }}
                                     />
                                 </label>
                                 <label className="inlineLabel">
@@ -2820,6 +2821,7 @@ export function App() {
                                         min={1}
                                         max={60}
                                         step={1}
+                                        style={{ width: "100%", minWidth: 0 }}
                                     />
                                 </label>
                                 <label className="inlineLabel">
@@ -3950,7 +3952,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             const trackStroke = loadBar.showTrack ? loadBar.trackThickness : 0
             const circleRadius = Math.max(0, circleSize / 2 - Math.max(strokeWidth, trackStroke) * 0.5)
             const circumference = 2 * Math.PI * circleRadius
-            const circleOffsetX = (contentWidth - circleSize) / 2 + 30 // Move 30px to the right
+            const circleOffsetX = (contentWidth - circleSize) / 2 + 60 // Move 60px to the right
             const circleOffsetY = (contentHeight - circleSize) / 2
             const maxStroke = Math.max(strokeWidth, trackStroke)
             const centerX = circleOffsetX + circleSize / 2
@@ -3991,7 +3993,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         transform: "translateY(-100px)",
                     }}
                 >
-                    <svg width={circleSize} height={circleSize} style={{ transform: `translateY(-10px) rotate(${rotationDeg}deg)` }}>
+                    <svg width={circleSize} height={circleSize} style={{ transform: `translateX(30px) translateY(-10px) rotate(${rotationDeg}deg)` }}>
                         {loadBar.showTrack && loadBar.fillStyle !== "lines" && (
                             <circle
                                 cx={circleSize / 2}
@@ -4071,10 +4073,10 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         <div
                             style={{
                                 position: "absolute",
-                                left: insideLabelX,
-                                top: insideLabelY,
+                                left: "50%",
+                                top: "50%",
                                 pointerEvents: "none",
-                                transform: insideLabelTransform,
+                                transform: `translateX(30px) translate(-50%, -50%) translateY(-10px)${labelOffsetX ? ` translateX(${labelOffsetX}px)` : ""}${labelOffsetY ? ` translateY(${-labelOffsetY}px)` : ""}`,
                             }}
                         >
                             <div
@@ -4097,7 +4099,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 height: circleSize,
                                 left: "50%",
                                 top: "50%",
-                                transform: "translate(-50%, -50%) translateY(-10px)",
+                                transform: "translateX(30px) translate(-50%, -50%) translateY(-10px)",
                                 pointerEvents: "none",
                             }}
                         >
