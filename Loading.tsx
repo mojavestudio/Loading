@@ -1922,6 +1922,8 @@ export default function Loading(p: Props) {
                 boxSizing: "border-box",
             }
 
+            const trackBackground = showTrack ? trackColor : "transparent"
+
             if (fillStyle === "solid") {
                 return (
                     <div style={barOuterWrapperStyle}>
@@ -2006,7 +2008,6 @@ export default function Loading(p: Props) {
                           )
                       )
             const period = stripeWidthPx + stripeGapPx
-            const trackBackground = showTrack ? trackColor : "transparent"
             const trackPattern = `repeating-linear-gradient(90deg, ${trackBackground} 0px, ${trackBackground} ${stripeWidthPx}px, transparent ${stripeWidthPx}px, transparent ${period}px)`
             const fillPattern = `repeating-linear-gradient(90deg, ${barColor} 0px, ${barColor} ${stripeWidthPx}px, transparent ${stripeWidthPx}px, transparent ${period}px)`
 
@@ -2556,126 +2557,125 @@ addPropertyControls(Loading, {
           return anim !== "circle" && anim !== "bar"
         },
       },
-            barRadius: {
-                type: ControlType.Number,
-                title: "Radius",
-                min: 0,
-                max: 20,
-                defaultValue: DEFAULT_LOAD_BAR.barRadius,
-                displayStepper: true,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
-            },
-            barColor: {
-                type: ControlType.Color,
-                title: "Bar",
-                defaultValue: DEFAULT_LOAD_BAR.barColor,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
-            },
-            lineWidth: {
-                type: ControlType.Number,
-                title: "Width",
-                min: 1,
-                max: 50,
-                step: 1,
-                defaultValue: DEFAULT_LOAD_BAR.lineWidth,
-                displayStepper: true,
-                hidden: (bar: any = {}) => {
-                    const style =
-                        bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
-                    const fill = bar.fillStyle ?? DEFAULT_LOAD_BAR.fillStyle
-                    return style === "text" || fill !== "lines"
-                },
-            },
-            lineCount: {
-                type: ControlType.Number,
-                title: "Lines",
-                min: 3,
-                max: 60,
-                step: 1,
-                defaultValue: DEFAULT_LOAD_BAR.lineCount,
-                displayStepper: true,
-                hidden: (bar: any = {}) => {
-                    const style =
-                        bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
-                    const fill = bar.fillStyle ?? DEFAULT_LOAD_BAR.fillStyle
-                    return style === "text" || fill !== "lines"
-                },
-            },
-            showTrack: {
-                type: ControlType.Boolean,
-                title: "Track",
-                defaultValue: DEFAULT_LOAD_BAR.showTrack,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
-            },
-            circleGap: {
-                type: ControlType.Number,
-                title: "Gap",
-                min: 0,
-                max: 90,
-                step: 1,
-                defaultValue: DEFAULT_LOAD_BAR.circleGap,
-                displayStepper: true,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "circle",
-            },
-            trackColor: {
-                type: ControlType.Color,
-                title: "Track",
-                defaultValue: DEFAULT_LOAD_BAR.trackColor,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
-                    !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),
-            },
-            trackWidth: {
-                type: ControlType.Number,
-                title: "Width",
-                min: 1,
-                max: 50,
-                step: 1,
-                defaultValue: DEFAULT_LOAD_BAR.trackWidth,
-                displayStepper: true,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
-                    !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),
-            },
-            finishDelay: {
-                type: ControlType.Number,
-                title: "Finish Delay (s)",
-                min: 0,
-                max: 2,
-                step: 0.05,
-                defaultValue: DEFAULT_LOAD_BAR.finishDelay,
-            },
-            showBorder: {
-                type: ControlType.Boolean,
-                title: "Border",
-                defaultValue: DEFAULT_LOAD_BAR.showBorder,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
-            },
-            borderWidth: {
-                type: ControlType.Number,
-                title: "Border Width",
-                min: 1,
-                max: 12,
-                defaultValue: DEFAULT_LOAD_BAR.borderWidth,
-                displayStepper: true,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar" ||
-                    !(bar.showBorder ?? DEFAULT_LOAD_BAR.showBorder),
-            },
-            borderColor: {
-                type: ControlType.Color,
-                title: "Border Color",
-                defaultValue: DEFAULT_LOAD_BAR.borderColor,
-                hidden: (bar: any = {}) =>
-                    (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar" ||
-                    !(bar.showBorder ?? DEFAULT_LOAD_BAR.showBorder),
-            },
+      barRadius: {
+        type: ControlType.Number,
+        title: "Radius",
+        min: 0,
+        max: 20,
+        defaultValue: DEFAULT_LOAD_BAR.barRadius,
+        displayStepper: true,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
+      },
+      barColor: {
+        type: ControlType.Color,
+        title: "Bar",
+        defaultValue: DEFAULT_LOAD_BAR.barColor,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
+      },
+      lineWidth: {
+        type: ControlType.Number,
+        title: "Width",
+        min: 1,
+        max: 50,
+        step: 1,
+        defaultValue: DEFAULT_LOAD_BAR.lineWidth,
+        displayStepper: true,
+        hidden: (bar: any = {}) => {
+            const style =
+                bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
+            const fill = bar.fillStyle ?? DEFAULT_LOAD_BAR.fillStyle
+            return style === "text" || fill !== "lines"
         },
+      },
+      lineCount: {
+        type: ControlType.Number,
+        title: "Lines",
+        min: 3,
+        max: 60,
+        step: 1,
+        defaultValue: DEFAULT_LOAD_BAR.lineCount,
+        displayStepper: true,
+        hidden: (bar: any = {}) => {
+            const style =
+                bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
+            const fill = bar.fillStyle ?? DEFAULT_LOAD_BAR.fillStyle
+            return style === "text" || fill !== "lines"
+        },
+      },
+      showTrack: {
+        type: ControlType.Boolean,
+        title: "Track",
+        defaultValue: DEFAULT_LOAD_BAR.showTrack,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
+      },
+      circleGap: {
+        type: ControlType.Number,
+        title: "Gap",
+        min: 0,
+        max: 90,
+        step: 1,
+        defaultValue: DEFAULT_LOAD_BAR.circleGap,
+        displayStepper: true,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "circle",
+      },
+      trackColor: {
+        type: ControlType.Color,
+        title: "Track",
+        defaultValue: DEFAULT_LOAD_BAR.trackColor,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
+            !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),
+      },
+      trackWidth: {
+        type: ControlType.Number,
+        title: "Width",
+        min: 1,
+        max: 50,
+        step: 1,
+        defaultValue: DEFAULT_LOAD_BAR.trackWidth,
+        displayStepper: true,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
+            !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),
+      },
+      finishDelay: {
+        type: ControlType.Number,
+        title: "Finish Delay (s)",
+        min: 0,
+        max: 2,
+        step: 0.05,
+        defaultValue: DEFAULT_LOAD_BAR.finishDelay,
+      },
+      showBorder: {
+        type: ControlType.Boolean,
+        title: "Border",
+        defaultValue: DEFAULT_LOAD_BAR.showBorder,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
+      },
+      borderWidth: {
+        type: ControlType.Number,
+        title: "Border Width",
+        min: 1,
+        max: 12,
+        defaultValue: DEFAULT_LOAD_BAR.borderWidth,
+        displayStepper: true,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar" ||
+            !(bar.showBorder ?? DEFAULT_LOAD_BAR.showBorder),
+      },
+      borderColor: {
+        type: ControlType.Color,
+        title: "Border Color",
+        defaultValue: DEFAULT_LOAD_BAR.borderColor,
+        hidden: (bar: any = {}) =>
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar" ||
+            !(bar.showBorder ?? DEFAULT_LOAD_BAR.showBorder),
+      },
     },
     label: {
         type: ControlType.Object,
@@ -2760,7 +2760,6 @@ addPropertyControls(Loading, {
                     return true
                 },
             },
-        },
     },
     onReady: { type: ControlType.EventHandler, title: "onReady" },
 })

@@ -110,6 +110,23 @@
   next_action: None - task complete.
   updated: 2026-01-12
 
+- id: T-011
+  title: Add color 1D1D1D and create Framer Color Profile
+  status: completed
+  summary: Implemented color 1D1D1D for dropdowns, text, and number boxes, created Framer Color Profile with background 111111 and secondary background 1D1D1D, and added user-specifiable secondary color for plugins.
+  attempts:
+    - when: 2026-01-12
+      result: completed
+      notes: 
+        * Added color 1D1D1D to input backgrounds (dropdowns, text, number boxes)
+        * Created comprehensive Framer Color Profile with all color variables
+        * Implemented TypeScript color constants and interfaces
+        * Added custom secondary accent color picker in plugin UI
+        * Created detailed styling guide documentation
+        * Updated CSS variables in globals.css
+        * Integrated color profile system with theme switching
+  updated: 2026-01-12
+
 ## Technical Decisions
 - **AgentMemory Established**: Created baseline AgentMemory per workflow on 2026-01-10 to capture ongoing tasks.
 - **VisualsSlider Component**: Custom React component that renders vertical lines with dynamic height based on normalized value. Removed range input in favor of direct pointer event handling on the lines container. Label integrated inside the box, no numerical value display. Fine-tuned positioning using relative CSS positioning for precise layout adjustments.

@@ -2,10 +2,74 @@
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--text-primary, #111111);
     background-color: var(--bg-window, #111111);
+    
+    /* Framer Color Profile */
+    --bg-window: #111111;
+    --bg-secondary: #1D1D1D;
+    --input-background: #1D1D1D;
+    --surface-card: #1a1a1a;
+    --surface-panel: #161616;
+    --surface-background: #111111;
+    
+    /* Text Colors */
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --text-tertiary: #808080;
+    --text-subtle: #606060;
+    
+    /* Accent Colors */
+    --accent-primary: #8550ff;
+    --accent-secondary: #6b3dd8;
+    --accent-focus-ring: rgba(133, 79, 255, 0.3);
+    
+    /* Border Colors */
+    --border-soft: #2a2a2a;
+    --border-strong: #404040;
+    --checkbox-border: #2a2a2a;
+    
+    /* Other Colors */
+    --ghost-bg: #1a1a1a;
+    --ghost-text: #b0b0b0;
+    --ghost-border: #2a2a2a;
+    --badge-bg: #2a2a2a;
+    --badge-text: #b0b0b0;
+    --preview-border: #2a2a2a;
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --error-text: #ff6b6b;
 }
 
 *, *::before, *::after {
     box-sizing: border-box;
+}
+
+.loadingSettings input[type="text"],
+.loadingSettings input[type="email"],
+.loadingSettings input[type="number"],
+.loadingSettings select {
+    font-size: 10px;
+    padding: 4px 8px;
+    background: #1D1D1D;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="number"],
+select {
+    border-radius: 4px;
+    border: 1px solid var(--border-soft);
+    padding: 5px 10px;
+    height: 32px;
+    line-height: 17px;
+    font-size: 12px;
+    font-family: monospace;
+    background: #1D1D1D;
+    color: var(--text-primary);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    -webkit-appearance: none;
+    appearance: none;
 }
 
 /* Ensure all elements respect container padding */

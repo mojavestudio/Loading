@@ -1014,4 +1014,3 @@ addPropertyControls(Loading, {
 export {
   Loading as default
 };
-//# sourceMappingURL=Loading.component.js.map

@@ -6,7 +6,7 @@
  */
 
 import { framer } from "framer-plugin"
-import {
+import React, {
     useState,
     useEffect,
     useMemo,
@@ -20,6 +20,7 @@ import {
 import { createPortal } from "react-dom"
 import { ArrowsOut, Barricade, ClockCounterClockwise, Plus, SpinnerGap, TextT } from "@phosphor-icons/react"
 import { motion } from "framer-motion"
+import { defaultFramerColors, createFramerColorProfile, applyColorProfile, type FramerColorProfile } from "./colors"
 import "./App.css"
 
 type ThemeMode = "light" | "dark"
@@ -95,28 +96,28 @@ const lightTheme: ThemeTokens = {
 }
 
 const darkTheme: ThemeTokens = {
-    "bg-window": "#0c0b13",
-    "surface-panel": "rgba(30, 27, 46, 0.82)",
-    "surface-card": "#1e1b2e",
-    "border-soft": "rgba(255, 255, 255, 0.1)",
-    "border-strong": "rgba(255, 255, 255, 0.18)",
-    "text-primary": "rgba(255, 255, 255, 0.94)",
-    "text-secondary": "rgba(255, 255, 255, 0.72)",
-    "text-tertiary": "rgba(255, 255, 255, 0.7)",
-    "text-subtle": "rgba(255, 255, 255, 0.82)",
-    "accent-primary": "#b89bff",
-    "accent-glow": "0 12px 30px rgba(184, 155, 255, 0.45)",
-    "ghost-bg": "rgba(255, 255, 255, 0.08)",
-    "ghost-border": "rgba(255, 255, 255, 0.16)",
-    "ghost-text": "rgba(255, 255, 255, 0.92)",
-    "badge-bg": "rgba(184, 155, 255, 0.18)",
-    "badge-text": "#e2d9ff",
-    "input-background": "rgba(20, 18, 30, 0.85)",
-    "error-text": "#ff9f9f",
-    "preview-border": "rgba(255, 255, 255, 0.08)",
-    "settings-border": "rgba(255, 255, 255, 0.08)",
-    "checkbox-border": "rgba(255, 255, 255, 0.18)",
-    "card-shadow": "0 24px 50px rgba(0, 0, 0, 0.55)",
+    "bg-window": defaultFramerColors.bgWindow,
+    "surface-panel": defaultFramerColors.surfacePanel,
+    "surface-card": defaultFramerColors.surfaceCard,
+    "border-soft": defaultFramerColors.borderSoft,
+    "border-strong": defaultFramerColors.borderStrong,
+    "text-primary": defaultFramerColors.textPrimary,
+    "text-secondary": defaultFramerColors.textSecondary,
+    "text-tertiary": defaultFramerColors.textTertiary,
+    "text-subtle": defaultFramerColors.textSubtle,
+    "accent-primary": defaultFramerColors.accentPrimary,
+    "accent-glow": "0 12px 30px rgba(133, 79, 255, 0.35)",
+    "ghost-bg": defaultFramerColors.ghostBg,
+    "ghost-border": defaultFramerColors.ghostBorder,
+    "ghost-text": defaultFramerColors.ghostText,
+    "badge-bg": defaultFramerColors.badgeBg,
+    "badge-text": defaultFramerColors.badgeText,
+    "input-background": defaultFramerColors.inputBackground,
+    "error-text": defaultFramerColors.errorText,
+    "preview-border": defaultFramerColors.previewBorder,
+    "settings-border": defaultFramerColors.borderSoft,
+    "checkbox-border": defaultFramerColors.checkboxBorder,
+    "card-shadow": defaultFramerColors.cardShadow,
 }
 
 const themeTokenMap: Record<ThemeMode, ThemeTokens> = {
@@ -129,16 +130,7 @@ const normalizeFontFamily = (value: string) => value.replace(/["']/g, "").replac
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
 // Font Dropdown component (with search + optional custom entry)
-const SearchableFontDropdown = ({
-    value,
-    onChange,
-    fontFamilyOptions,
-    usingProjectFont,
-    matchedFontFamily,
-    fontsByFamily,
-    updateLoadBar,
-    builder,
-}: {
+const SearchableFontDropdown = (props: {
     value: string
     onChange: (value: string) => void
     fontFamilyOptions: string[]
@@ -148,10 +140,13 @@ const SearchableFontDropdown = ({
     updateLoadBar: (updates: Partial<LoadBarControls>) => void
     builder: BuilderState
 }) => {
+    const { value, onChange, fontFamilyOptions, fontsByFamily, updateLoadBar, builder } = props
     const [isOpen, setIsOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
     const dropdownRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
+    const menuRef = useRef<HTMLDivElement>(null)
+    const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
     // Combine project fonts with common web fonts as fallbacks
     const allFontOptions = useMemo(() => {
@@ -241,10 +236,19 @@ const SearchableFontDropdown = ({
         }
     }
 
+    const syncAnchorRect = useCallback(() => {
+        const node = dropdownRef.current
+        if (!node) return
+        setAnchorRect(node.getBoundingClientRect())
+    }, [])
+
     // Close dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            const target = event.target as Node
+            const dropdownContains = dropdownRef.current?.contains(target)
+            const menuContains = menuRef.current?.contains(target)
+            if (!dropdownContains && !menuContains) {
                 setIsOpen(false)
             }
         }
@@ -260,18 +264,78 @@ const SearchableFontDropdown = ({
 
     useEffect(() => {
         if (!isOpen) return
+        syncAnchorRect()
+
+        const onAnyScroll = () => syncAnchorRect()
+        window.addEventListener("resize", onAnyScroll)
+        window.addEventListener("scroll", onAnyScroll, true)
+
         queueMicrotask(() => searchInputRef.current?.focus())
-    }, [isOpen])
+
+        return () => {
+            window.removeEventListener("resize", onAnyScroll)
+            window.removeEventListener("scroll", onAnyScroll, true)
+        }
+    }, [isOpen, syncAnchorRect])
 
     useEffect(() => {
         if (!isOpen) setSearchTerm("")
-    }, [value])
+    }, [value, isOpen])
 
     const buttonLabel = value?.trim() ? value.trim() : "Select a font…"
     const customEntryVisible = (() => {
         const typed = searchTerm.trim()
         if (!typed) return false
         return !allFontOptions.some((font) => normalizeFontFamily(font) === normalizeFontFamily(typed))
+    })()
+
+    const menuMaxHeight = 240
+    const menuLayout: { style: React.CSSProperties; maxHeight: number } | null = (() => {
+        if (!isOpen || !anchorRect) return null
+
+        const gutter = 8
+        const spaceBelow = window.innerHeight - anchorRect.bottom - gutter
+        const spaceAbove = anchorRect.top - gutter
+        const openAbove = spaceBelow < menuMaxHeight && spaceAbove > spaceBelow
+
+        const maxHeight = Math.max(120, Math.min(menuMaxHeight, (openAbove ? spaceAbove : spaceBelow) - 12))
+
+        const desiredWidth = anchorRect.width * 2
+        const maxWidth = window.innerWidth - gutter * 2
+        const width = Math.max(180, Math.min(desiredWidth, maxWidth))
+        const left = Math.max(gutter, Math.min(anchorRect.left, window.innerWidth - width - gutter))
+
+        const base: React.CSSProperties = {
+            position: "fixed",
+            left,
+            width,
+            background: "#1D1D1Dc",
+            border: "1px solid var(--border-soft)",
+            borderRadius: 6,
+            zIndex: 100000,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            overflow: "hidden",
+        }
+
+        if (openAbove) {
+            return {
+                style: {
+                    ...base,
+                    bottom: window.innerHeight - anchorRect.top + 4,
+                    maxHeight,
+                },
+                maxHeight,
+            }
+        }
+
+        return {
+            style: {
+                ...base,
+                top: anchorRect.bottom + 4,
+                maxHeight,
+            },
+            maxHeight,
+        }
     })()
 
     return (
@@ -323,83 +387,44 @@ const SearchableFontDropdown = ({
                     ▾
                 </span>
             </button>
-            {isOpen && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        background: 'var(--surface-card)',
-                        border: '1px solid var(--border-soft)',
-                        borderRadius: '6px',
-                        marginTop: '4px',
-                        zIndex: 1000,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        overflow: "hidden",
-                    }}
-                >
-                    <div style={{ padding: 8, borderBottom: "1px solid var(--border-soft)" }}>
-                        <input
-                            ref={searchInputRef}
-                            type="text"
-                            value={searchTerm}
-                            onChange={handleSearchChange}
-                            onKeyDown={handleSearchKeyDown}
-                            placeholder="Search fonts or type a custom name…"
-                            style={{
-                                width: "100%",
-                                height: 30,
-                                padding: "6px 10px",
-                                border: "1px solid var(--border-soft)",
-                                borderRadius: 6,
-                                background: "var(--input-background)",
-                                color: "var(--text-primary)",
-                                fontSize: 13,
-                                outline: "none",
-                                boxSizing: "border-box",
-                            }}
-                        />
-                    </div>
-                    <div style={{ maxHeight: 200, overflowY: "auto" }} role="listbox">
-                        {customEntryVisible && (
-                            <div
-                                key={`__custom__${searchTerm}`}
-                                onClick={() => handleSelect(searchTerm.trim())}
+            {isOpen &&
+                menuLayout &&
+                typeof document !== "undefined" &&
+                createPortal(
+                    <div ref={menuRef} style={menuLayout.style}>
+                        <div style={{ padding: 8, borderBottom: "1px solid var(--border-soft)" }}>
+                            <input
+                                ref={searchInputRef}
+                                type="text"
+                                value={searchTerm}
+                                onChange={handleSearchChange}
+                                onKeyDown={handleSearchKeyDown}
+                                placeholder="Search fonts or type a custom name…"
                                 style={{
-                                    padding: "8px 12px",
-                                    cursor: "pointer",
-                                    fontSize: 13,
+                                    width: "100%",
+                                    height: 30,
+                                    padding: "6px 10px",
+                                    border: "1px solid var(--border-soft)",
+                                    borderRadius: 6,
+                                    background: "#111111",
                                     color: "var(--text-primary)",
-                                    borderBottom: "1px solid var(--border-soft)",
+                                    fontSize: 13,
+                                    outline: "none",
+                                    boxSizing: "border-box",
                                 }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = "var(--ghost-bg)"
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = "transparent"
-                                }}
-                            >
-                                <span>Use “{searchTerm.trim()}”</span>
-                            </div>
-                        )}
-                        {filteredOptions.map((font) => {
-                            const isProjectFont = fontFamilyOptions.includes(font)
-                            return (
+                            />
+                        </div>
+                        <div style={{ overflowY: "auto", maxHeight: Math.max(80, menuLayout.maxHeight - 50) }} role="listbox">
+                            {customEntryVisible && (
                                 <div
-                                    key={font}
-                                    onClick={() => handleSelect(font)}
+                                    key={`__custom__${searchTerm}`}
+                                    onClick={() => handleSelect(searchTerm.trim())}
                                     style={{
                                         padding: "8px 12px",
                                         cursor: "pointer",
-                                        fontFamily: font,
                                         fontSize: 13,
                                         color: "var(--text-primary)",
                                         borderBottom: "1px solid var(--border-soft)",
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        gap: 10,
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.background = "var(--ghost-bg)"
@@ -408,29 +433,58 @@ const SearchableFontDropdown = ({
                                         e.currentTarget.style.background = "transparent"
                                     }}
                                 >
-                                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                        {font}
-                                    </span>
-                                    {isProjectFont && (
-                                        <span
-                                            style={{
-                                                flex: "0 0 auto",
-                                                fontSize: 10,
-                                                padding: "2px 6px",
-                                                borderRadius: 3,
-                                                background: "var(--badge-bg)",
-                                                color: "var(--badge-text)",
-                                            }}
-                                        >
-                                            Project
-                                        </span>
-                                    )}
+                                    <span>Use “{searchTerm.trim()}”</span>
                                 </div>
-                            )
-                        })}
-                    </div>
-                </div>
-            )}
+                            )}
+                            {filteredOptions.map((font) => {
+                                const isProjectFont = fontFamilyOptions.includes(font)
+                                return (
+                                    <div
+                                        key={font}
+                                        onClick={() => handleSelect(font)}
+                                        style={{
+                                            padding: "8px 12px",
+                                            cursor: "pointer",
+                                            fontFamily: font,
+                                            fontSize: 13,
+                                            color: "var(--text-primary)",
+                                            borderBottom: "1px solid var(--border-soft)",
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            gap: 10,
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = "var(--ghost-bg)"
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = "transparent"
+                                        }}
+                                    >
+                                        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            {font}
+                                        </span>
+                                        {isProjectFont && (
+                                            <span
+                                                style={{
+                                                    flex: "0 0 auto",
+                                                    fontSize: 10,
+                                                    padding: "2px 6px",
+                                                    borderRadius: 3,
+                                                    background: "var(--badge-bg)",
+                                                    color: "var(--badge-text)",
+                                                }}
+                                            >
+                                                Project
+                                            </span>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>,
+                    document.body
+                )}
         </div>
     )
 }
@@ -710,6 +764,7 @@ type BuilderState = {
     controls: LoadingControls
     width: number
     height: number
+    secondaryAccentColor?: string
 }
 
 type InsertHistoryEntry = {
@@ -1084,6 +1139,7 @@ const createDefaultBuilderState = (): BuilderState => ({
     controls: createDefaultControls(),
     width: 600,
     height: 48,
+    secondaryAccentColor: defaultFramerColors.accentSecondary,
 })
 
 const getInsertionSize = (style: LoadBarControls["animationStyle"], builder: BuilderState) => {
@@ -1110,8 +1166,17 @@ const getEnv = (key: string): string | undefined => {
 }
 
 // Try with version ID first, fallback to latest version if needed
-const DEFAULT_COMPONENT_URL = () =>
-    "https://framer.com/m/Loading-v5jr.js@Mh2kzzzjgwqqp8y6SYsN"
+const DEFAULT_COMPONENT_URL = () => {
+    if (typeof window !== "undefined") {
+        try {
+            return new URL("./Loading.component.js", window.location.href).toString()
+        } catch {
+            // ignore
+        }
+    }
+
+    return "https://framer.com/m/Loading-v5jr.js@gRJ9Du2k0p5S2srmIXNj"
+}
 
 const COMPONENT_URL =
     getEnv("VITE_LOADING_COMPONENT_URL") || DEFAULT_COMPONENT_URL()
@@ -1582,7 +1647,14 @@ export function App() {
         const root = document.documentElement
         const tokens = themeTokenMap[themeMode]
         Object.entries(tokens).forEach(([token, value]) => root.style.setProperty(`--${token}`, value))
-    }, [themeMode])
+        
+        // Apply custom color profile if in dark mode
+        if (themeMode === "dark" && builder.secondaryAccentColor) {
+            const customProfile = createFramerColorProfile(builder.secondaryAccentColor)
+            root.style.setProperty("--accent-secondary", customProfile.accentSecondary)
+            root.style.setProperty("--accent-focus-ring", customProfile.accentFocusRing)
+        }
+    }, [themeMode, builder.secondaryAccentColor])
 
     useEffect(() => {
         if (initialSnapshot) {
@@ -2123,7 +2195,7 @@ export function App() {
 
     const handleInsert = useCallback(async () => {
         if (!COMPONENT_URL) {
-            await framer.notify("Component URL missing. Set VITE_LOADING_COMPONENT_URL or include Loading.component.js.", {
+            await framer.notify("Component URL missing. Set VITE_LOADING_COMPONENT_URL or include Loading.component.js in the plugin build.", {
                 variant: "error",
             })
             return
@@ -2196,22 +2268,55 @@ export function App() {
         }
         
         const mappedControls = mapControlsToComponentStructure(loadingControls)
-        
+
+        const componentUrl = (COMPONENT_URL || "").trim()
         const insertAttrs = {
             width: insertionSize.width,
             height: insertionSize.height,
-            // Prevent auto-sizing jitter on insert
-            autoSize: false,
-            constraints: { autoSize: "none" as const },
             // Property control values must live under controls
             controls: mappedControls,
         } as any
 
         try {
+            let canAddComponentInstance = true
+            try {
+                if (typeof framer.isAllowedTo === "function") {
+                    const result = framer.isAllowedTo("addComponentInstance" as any)
+                    canAddComponentInstance = typeof result === "boolean" ? result : await result
+                }
+            } catch {
+                // ignore
+            }
+
+            if (!canAddComponentInstance) {
+                const fallbackInserted = await tryFallbackInsert()
+                if (fallbackInserted) {
+                    await framer.notify(
+                        `⚠️ Inserted a frame placeholder (${insertionSize.width}×${insertionSize.height}) because component insertion permissions are restricted. To insert the actual component, grant "addComponentInstance" permission in Framer's plugin settings.`,
+                        { variant: "warning" }
+                    )
+                    return
+                }
+
+                await framer.notify(
+                    `Plugin permissions don't allow inserting components. You can manually add the component by pasting this URL onto the Framer Canvas: ${componentUrl}`,
+                    { variant: "error" }
+                )
+                return
+            }
+
+            if (!componentUrl) {
+                await framer.notify(
+                    'Component URL missing. Set VITE_LOADING_COMPONENT_URL or include Loading.component.js in the plugin build.',
+                    { variant: "error" }
+                )
+                return
+            }
+
             // According to Framer component sharing docs, component URLs can be used directly
             if (__isLocal) {
                 console.log("[Loading Plugin] Attempting to insert component", {
-                    url: COMPONENT_URL,
+                    url: componentUrl,
                     attributes: insertAttrs,
                     insertionSize,
                     animationStyle: loadingControls.loadBar.animationStyle,
@@ -2221,7 +2326,7 @@ export function App() {
             }
             
             const inserted = await framer.addComponentInstance({
-                url: COMPONENT_URL,
+                url: componentUrl,
                 attributes: insertAttrs,
             } as any)
             
@@ -2258,7 +2363,6 @@ export function App() {
                         await (framer as any).setAttributes(insertedId, {
                             width: insertionSize.width as any,
                             height: insertionSize.height as any,
-                            constraints: { autoSize: 'none' as const },
                             controls: mappedControls,
                         } as any)
                         
@@ -2270,7 +2374,6 @@ export function App() {
                                 await (framer as any).setAttributes(insertedId, {
                                     width: insertionSize.width as any,
                                     height: insertionSize.height as any,
-                                    constraints: { autoSize: 'none' as const },
                                     controls: mappedControls,
                                 } as any)
                             } catch (retryErr) {
@@ -2369,22 +2472,18 @@ export function App() {
                 })
             }
             const fallbackInserted = await tryFallbackInsert()
-            if (fallbackInserted) {
-                await framer.notify(
-                    `⚠️ Inserted a frame placeholder (${insertionSize.width}×${insertionSize.height}) because component insertion permissions are restricted. To insert the actual component, grant "addComponentInstance" permission in Framer's plugin settings.`,
-                    { variant: "warning" }
-                )
-                return
-            }
+            if (fallbackInserted) return
 
             // Provide helpful error message based on the error type
             let userMessage = `Error inserting Loading component: ${errorMessage}.`
             if (errorMessage.includes("Permission") || errorMessage.includes("permission") || errorMessage.includes("not allowed")) {
                 userMessage += " This may be a plugin permission issue. Try: 1) Paste the component URL directly onto the Framer Canvas to add it manually, or 2) Check Plugins → Developer Tools for permission settings."
             } else if (errorMessage.includes("fetch") || errorMessage.includes("network") || errorMessage.includes("404") || errorMessage.includes("Failed to fetch") || errorMessage.includes("module")) {
-                userMessage += ` The component URL may not be accessible. Ensure the component is publicly shared in Framer (Assets → Code → right-click component → Copy URL). You can also paste this URL directly onto the Canvas: ${COMPONENT_URL}`
+                userMessage += ` The component URL may not be accessible. Ensure the component is publicly shared in Framer (Assets → Code → right-click component → Copy URL). You can also paste this URL directly onto the Canvas: ${componentUrl}`
+            } else if (errorMessage.includes("lookup contains invalid query")) {
+                userMessage += ` This usually means Framer rejected the component URL or the insert attributes. Try pasting the URL directly onto the Canvas to verify it works: ${componentUrl}`
             } else {
-                userMessage += ` You can manually add the component by pasting this URL directly onto the Framer Canvas: ${COMPONENT_URL}`
+                userMessage += ` You can manually add the component by pasting this URL directly onto the Framer Canvas: ${componentUrl}`
             }
             
             await framer.notify(userMessage, {
@@ -2671,14 +2770,6 @@ export function App() {
                     >
                         <ArrowsOut size={14} weight="duotone" />
                         <span>Positioning</span>
-                    </button>
-                    <button
-                        type="button"
-                        className={`pluginTab${activeTab === "gate" ? " is-active" : ""}`}
-                        onClick={() => setActiveTab("gate")}
-                    >
-                        <Barricade size={14} weight="duotone" />
-                        <span>Gate</span>
                     </button>
                     <button
                         type="button"
@@ -3248,7 +3339,7 @@ export function App() {
                                                     className={`toggleButton trackBorderToggle ${
                                                         builder.controls.loadBar.startAtLabel ? "is-active" : ""
                                                     }`}
-                                                    style={{ whiteSpace: "nowrap", width: "auto", minWidth: "auto", maxWidth: "none", flex: "0 0 auto" }}
+                                                    style={{ whiteSpace: "nowrap", width: "230px", minWidth: "230px", maxWidth: "none", flex: "0 0 auto" }}
                                                     onClick={() =>
                                                         updateLoadBar({ startAtLabel: !builder.controls.loadBar.startAtLabel })
                                                     }
