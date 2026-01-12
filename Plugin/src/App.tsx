@@ -129,6 +129,21 @@ const normalizeFontFamily = (value: string) => value.replace(/["']/g, "").replac
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
+const pruneUndefinedDeep = <T,>(value: T): T => {
+    if (Array.isArray(value)) {
+        return value.map((item) => pruneUndefinedDeep(item)) as T
+    }
+
+    if (!value || typeof value !== "object") return value
+
+    const next: Record<string, unknown> = {}
+    Object.entries(value as Record<string, unknown>).forEach(([key, val]) => {
+        if (val === undefined) return
+        next[key] = pruneUndefinedDeep(val)
+    })
+    return next as T
+}
+
 // Font Dropdown component (with search + optional custom entry)
 const SearchableFontDropdown = (props: {
     value: string
@@ -1173,19 +1188,9 @@ const getEnv = (key: string): string | undefined => {
     }
 }
 
-// Try with version ID first, fallback to latest version if needed
-const DEFAULT_COMPONENT_URL = () => {
-    if (typeof window !== "undefined") {
-        try {
-            return new URL("./Loading.component.js", window.location.href).toString()
-        } catch {
-            // ignore
-        }
-    }
+const stripFramerModuleVersion = (url: string) => url.replace(/(\.js)@[^/?#]+/g, "$1")
 
-    // Use latest version format (without version ID)
-    return "https://framer.com/m/Loading-v5jr.js"
-}
+const DEFAULT_COMPONENT_URL = () => "https://framer.com/m/Loading-v5jr.js"
 
 const COMPONENT_URL =
     getEnv("VITE_LOADING_COMPONENT_URL") || DEFAULT_COMPONENT_URL()
@@ -2295,9 +2300,9 @@ export function App() {
             }
         }
 
-        const mappedControls = mapControlsToComponentPropertyControls(loadingControls)
+        const mappedControls = pruneUndefinedDeep(mapControlsToComponentPropertyControls(loadingControls))
 
-        const componentUrl = (COMPONENT_URL || "").trim()
+        const componentUrl = stripFramerModuleVersion((COMPONENT_URL || "").trim())
         const insertAttrs = {
             width: insertionSize.width,
             height: insertionSize.height,

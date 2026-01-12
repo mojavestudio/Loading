@@ -2775,17 +2775,17 @@ addPropertyControls(Loading, {
                     !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel) ||
                     (label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement) === "hidden",
             },
-        labelPosition: {
-            type: ControlType.Enum,
-            title: "Horizontal Align",
-            options: ["left", "center", "right"],
-            optionTitles: ["Left", "Center", "Right"],
-            displaySegmentedControl: true,
-            defaultValue: DEFAULT_LOAD_BAR.labelPosition,
-            hidden: (label: any = {}) =>
-                !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
-        },
-        labelOutsideDirection: {
+            labelPosition: {
+                type: ControlType.Enum,
+                title: "Horizontal Align",
+                options: ["left", "center", "right"],
+                optionTitles: ["Left", "Center", "Right"],
+                displaySegmentedControl: true,
+                defaultValue: DEFAULT_LOAD_BAR.labelPosition,
+                hidden: (label: any = {}) =>
+                    !(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel),
+            },
+            labelOutsideDirection: {
                 type: ControlType.Enum,
                 title: "Vertical Align",
                 options: ["top", "center", "bottom"],
@@ -2794,14 +2794,20 @@ addPropertyControls(Loading, {
                 defaultValue: DEFAULT_LOAD_BAR.labelOutsideDirection,
                 hidden: (label: any = {}, props: any = {}) => {
                     if (!(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel)) return true
-                    const placement = label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement
-                    const anim = props?.loadBar?.animationStyle ?? props?.bar?.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle
+                    const placement =
+                        label.labelPlacement ?? DEFAULT_LOAD_BAR.labelPlacement
+                    const anim =
+                        props?.loadBar?.animationStyle ??
+                        props?.bar?.animationStyle ??
+                        DEFAULT_LOAD_BAR.animationStyle
                     // Show for outside/inline (all animation styles), and for inside when animation is bar
-                    if (["outside", "inline"].includes(placement as string)) return false
+                    if (["outside", "inline"].includes(placement as string))
+                        return false
                     if (placement === "inside" && anim === "bar") return false
                     return true
                 },
             },
+        },
     },
     onReady: { type: ControlType.EventHandler, title: "onReady" },
 })
