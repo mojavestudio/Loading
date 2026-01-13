@@ -25,13 +25,14 @@ import { motion, useSpring } from "framer-motion"
 // Removed WaitMode - always uses WindowLoad now
 
 type FontControlValue = {
-    fontFamily?: string
     family?: string
-    fontWeight?: string | number
     weight?: string | number
-    fontStyle?: string
     style?: string
+    fontFamily?: string
+    fontWeight?: string | number
+    fontStyle?: string
     fontSize?: number | string
+    size?: number | string
     letterSpacing?: number | string
     lineHeight?: number | string
 }
@@ -56,6 +57,7 @@ type LoadBarConfig = {
     trackWidth: number
     circleGap: number
     startAtLabel: boolean
+    textSize: number
     textFillColor: string
     textFillStyle: TextFillStyle
     textPerpetual: boolean
@@ -73,7 +75,6 @@ type LoadBarConfig = {
     labelOutsideDirection: "top" | "center" | "bottom"
     labelOffsetX?: number
     labelOffsetY?: number
-    finishDelay: number
     showBorder: boolean
     borderWidth: number
     borderColor: string
@@ -111,7 +112,6 @@ type Props = {
     trackWidth?: number
     circleGap?: number
     startAtLabel?: boolean
-    finishDelay?: number
     showBorder?: boolean
     borderWidth?: number
     borderColor?: string
@@ -181,6 +181,7 @@ const DEFAULT_LOAD_BAR: LoadBarConfig = {
     trackWidth: 8,
     circleGap: 12,
     startAtLabel: false,
+    textSize: 11,
     textFillColor: "#854FFF",
     textFillStyle: "dynamic",
     textPerpetual: false,
@@ -204,7 +205,6 @@ const DEFAULT_LOAD_BAR: LoadBarConfig = {
     labelOutsideDirection: "bottom",
     labelOffsetX: 0,
     labelOffsetY: 0,
-    finishDelay: 0.12,
     showBorder: false,
     borderWidth: 2,
     borderColor: "rgba(0,0,0,.2)",
@@ -253,7 +253,7 @@ export default function Loading(p: Props) {
         (nestedLabelOverrides.labelFont as FontControlValue | undefined) ??
         loadBarOverrides.labelFont ??
         DEFAULT_LOAD_BAR.labelFont
-    const fontSizeFromFont = parseFontSizeValue(fontOverride?.fontSize)
+    const fontSizeFromFont = parseFontSizeValue(fontOverride?.fontSize ?? fontOverride?.size)
 
     const animationStyle = coalesce(
         nestedBarOverrides.animationStyle,
@@ -277,7 +277,7 @@ export default function Loading(p: Props) {
         (loadBarOverrides as any).lineGap,
         DEFAULT_LOAD_BAR.lineCount
     )!
-    const height = coalesce(
+    const heightRaw = coalesce(
         p.thickness,
         p.height,
         nestedBarOverrides.height,
@@ -285,6 +285,8 @@ export default function Loading(p: Props) {
         loadBarOverrides.height,
         DEFAULT_LOAD_BAR.height
     )!
+    const height =
+        animationStyle === "text" ? heightRaw : clampNumber(heightRaw, 1, 35)
     const perpetual = coalesce(
         nestedBarOverrides.perpetual,
         loadBarOverrides.perpetual,
@@ -330,6 +332,14 @@ export default function Loading(p: Props) {
         loadBarOverrides.circleGap,
         DEFAULT_LOAD_BAR.circleGap
     )!
+    const textSize =
+        animationStyle === "text"
+            ? coalesce(
+                  nestedBarOverrides.textSize,
+                  loadBarOverrides.textSize,
+                  DEFAULT_LOAD_BAR.textSize
+              )
+            : undefined
     const textDisplayMode = coalesce(
         nestedBarOverrides.textDisplayMode,
         loadBarOverrides.textDisplayMode,
@@ -360,12 +370,6 @@ export default function Loading(p: Props) {
         nestedBarOverrides.startAtLabel,
         loadBarOverrides.startAtLabel,
         DEFAULT_LOAD_BAR.startAtLabel
-    )!
-    const finishDelay = coalesce(
-        p.finishDelay,
-        nestedBarOverrides.finishDelay,
-        loadBarOverrides.finishDelay,
-        DEFAULT_LOAD_BAR.finishDelay
     )!
     const showBorder = coalesce(
         p.showBorder,
@@ -404,13 +408,23 @@ export default function Loading(p: Props) {
         loadBarOverrides.labelColor,
         DEFAULT_LOAD_BAR.labelColor
     )!
-    const labelFontSize = coalesce(
-        p.labelFontSize,
-        nestedLabelOverrides.labelFontSize,
-        loadBarOverrides.labelFontSize,
-        fontSizeFromFont,
-        DEFAULT_LOAD_BAR.labelFontSize
-    )!
+    const labelFontSize =
+        animationStyle === "text"
+            ? coalesce(
+                  p.labelFontSize,
+                  nestedLabelOverrides.labelFontSize,
+                  textSize,
+                  fontSizeFromFont,
+                  loadBarOverrides.labelFontSize,
+                  DEFAULT_LOAD_BAR.labelFontSize
+              )!
+            : coalesce(
+                  p.labelFontSize,
+                  nestedLabelOverrides.labelFontSize,
+                  loadBarOverrides.labelFontSize,
+                  fontSizeFromFont,
+                  DEFAULT_LOAD_BAR.labelFontSize
+              )!
     const labelFontFamily = coalesce(
         p.labelFontFamily,
         nestedLabelOverrides.labelFontFamily,
@@ -522,12 +536,12 @@ export default function Loading(p: Props) {
         labelPosition,
         labelPlacement,
         labelOutsideDirection,
+        textSize: textSize ?? DEFAULT_LOAD_BAR.textSize,
         textDisplayMode,
         textFillStyle,
         textFillColor,
         textPerpetual,
         textReverse,
-        finishDelay,
         showBorder,
         borderWidth,
         borderColor,
@@ -799,8 +813,6 @@ export default function Loading(p: Props) {
 
             progress.set(1)
             await waitUntil(() => progress.get() >= 0.995, 1200)
-            const hold = Math.max(0, (finishDelay || 0) * 1000)
-            if (hold) await delay(hold)
 
             if (p.onReady) {
                 // Fire a synthetic event that matches Framer's expectations for interaction triggers
@@ -830,7 +842,6 @@ export default function Loading(p: Props) {
         p.timeoutSeconds,
         p.oncePerSession,
         p.onReady,
-        finishDelay,
         progress,
     ])
 
@@ -1437,7 +1448,21 @@ export default function Loading(p: Props) {
 
         if (animationStyle === "circle") {
             // Circle rendering - fill the available space accounting for stroke width
-            const baseCircleSize = Math.max(0, Math.min(contentWidth, contentHeight))
+            // Prefer sizing by height (so the circle doesn't grow when only width increases),
+            // but always clamp to available width to guarantee it stays inside the frame.
+            const CIRCLE_INSET_PX = 5
+            const availableCircleWidth = Math.max(
+                0,
+                contentWidth - CIRCLE_INSET_PX * 2
+            )
+            const availableCircleHeight = Math.max(
+                0,
+                contentHeight - CIRCLE_INSET_PX * 2
+            )
+            const baseCircleSize = Math.max(
+                0,
+                Math.min(availableCircleWidth, availableCircleHeight)
+            )
             const progressStrokeWidth = Math.max(1, height)
             const trackStrokeWidth = showTrack ? Math.max(0, trackWidth) : 0
             const maxStrokeWidth = Math.max(
@@ -1461,10 +1486,12 @@ export default function Loading(p: Props) {
                 gapLength / 2
             const progressCap: React.SVGAttributes<SVGCircleElement>["strokeLinecap"] =
                 progressValue <= 0.001 ? "butt" : "round"
-            
+
             // Center the SVG in the content area (flexbox will handle this, but we calculate for labels)
-            const circleOffsetX = (contentWidth - svgSize) / 2
-            const circleOffsetY = (contentHeight - svgSize) / 2
+            const circleOffsetX =
+                CIRCLE_INSET_PX + (availableCircleWidth - svgSize) / 2
+            const circleOffsetY =
+                CIRCLE_INSET_PX + (availableCircleHeight - svgSize) / 2
             const circlePaddingBase = Math.min(16, Math.max(6, circleSize * 0.08))
             const insideInset = Math.max(circlePaddingBase, maxStrokeWidth * 0.5 + 6)
             const centerX = circleOffsetX + circleSize / 2
@@ -1501,8 +1528,9 @@ export default function Loading(p: Props) {
                     alignItems: "center",
                     justifyContent: "center",
                     position: "relative",
-                    overflow: "visible", // Ensure stroke isn't clipped
-                    transform: "translateY(-100px)",
+                    overflow: "hidden",
+                    padding: CIRCLE_INSET_PX,
+                    boxSizing: "border-box",
                 }}>
                     <svg
                         width={svgSize}
@@ -2435,6 +2463,15 @@ addPropertyControls(Loading, {
         defaultValue: 0.6,
         displayStepper: true,
     },
+    perpetual: {
+        type: ControlType.Boolean,
+        title: "Perpetual (Circle)",
+        defaultValue: DEFAULT_LOAD_BAR.perpetual,
+        hidden: (props: any) => {
+            const anim = props.bar?.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
+            return anim !== "circle";
+        },
+    },
     timeoutSeconds: {
         type: ControlType.Number,
         title: "Timeout (s)",
@@ -2485,8 +2522,7 @@ addPropertyControls(Loading, {
         type: ControlType.Enum,
         title: "Fill",
         options: ["static", "dynamic", "oneByOne"],
-        optionTitles: ["Static", "Dynamic", "One by One"],
-        displaySegmentedControl: true,
+        optionTitles: ["Static", "Dynamic", "One-by-One"],
         defaultValue: DEFAULT_LOAD_BAR.textFillStyle,
         hidden: (bar: any = {}) =>
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text",
@@ -2519,19 +2555,22 @@ addPropertyControls(Loading, {
         type: ControlType.Number,
         title: "Height",
         min: 1,
-        max: 50,
+        max: 35,
         step: 1,
         defaultValue: DEFAULT_LOAD_BAR.height,
         displayStepper: true,
         hidden: (bar: any = {}) =>
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
       },
-      perpetual: {
-        type: ControlType.Boolean,
-        title: "Perpetual (Circle)",
-        defaultValue: DEFAULT_LOAD_BAR.perpetual,
+      textSize: {
+        type: ControlType.Number,
+        title: "Text Size",
+        min: 1,
+        step: 1,
+        defaultValue: DEFAULT_LOAD_BAR.textSize,
+        displayStepper: true,
         hidden: (bar: any = {}) =>
-          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "circle",
+          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text",
       },
       perpetualGap: {
         type: ControlType.Number,
@@ -2541,10 +2580,9 @@ addPropertyControls(Loading, {
         step: 0.1,
         defaultValue: DEFAULT_LOAD_BAR.perpetualGap,
         displayStepper: true,
-        hidden: (bar: any = {}) => {
-          const anim = bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
-          const perpetual =
-            bar.perpetual ?? DEFAULT_LOAD_BAR.perpetual;
+        hidden: (props: any) => {
+          const anim = props.bar?.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
+          const perpetual = props.perpetual ?? DEFAULT_LOAD_BAR.perpetual;
           return anim !== "circle" || !perpetual;
         },
       },
@@ -2604,13 +2642,6 @@ addPropertyControls(Loading, {
             return style === "text" || fill !== "lines"
         },
       },
-      showTrack: {
-        type: ControlType.Boolean,
-        title: "Track",
-        defaultValue: DEFAULT_LOAD_BAR.showTrack,
-        hidden: (bar: any = {}) =>
-            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
-      },
       circleGap: {
         type: ControlType.Number,
         title: "Gap",
@@ -2627,8 +2658,7 @@ addPropertyControls(Loading, {
         title: "Track",
         defaultValue: DEFAULT_LOAD_BAR.trackColor,
         hidden: (bar: any = {}) =>
-            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
-            !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
       },
       trackWidth: {
         type: ControlType.Number,
@@ -2639,16 +2669,7 @@ addPropertyControls(Loading, {
         defaultValue: DEFAULT_LOAD_BAR.trackWidth,
         displayStepper: true,
         hidden: (bar: any = {}) =>
-            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text" ||
-            !(bar.showTrack ?? DEFAULT_LOAD_BAR.showTrack),
-      },
-      finishDelay: {
-        type: ControlType.Number,
-        title: "Finish Delay (s)",
-        min: 0,
-        max: 2,
-        step: 0.05,
-        defaultValue: DEFAULT_LOAD_BAR.finishDelay,
+            (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
       },
       showBorder: {
         type: ControlType.Boolean,
@@ -2706,8 +2727,7 @@ addPropertyControls(Loading, {
                 type: ControlType.Enum,
                 title: "Display",
                 options: ["textOnly", "textAndNumber", "numberOnly"],
-                optionTitles: ["Text Only", "Text & Numbers", "Numbers Only"],
-                displaySegmentedControl: true,
+                optionTitles: ["Text", "Text + %", "%"],
                 defaultValue: DEFAULT_LOAD_BAR.textDisplayMode,
                 hidden: (label: any = {}, props: any = {}) => {
                     if (!(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel)) return true
@@ -2722,9 +2742,13 @@ addPropertyControls(Loading, {
                 type: ControlType.Font,
                 title: "Font",
                 defaultValue: {
-                    fontFamily: DEFAULT_LOAD_BAR.labelFontFamily,
-                    fontWeight: DEFAULT_LOAD_BAR.labelFontWeight,
-                    fontSize: `${DEFAULT_LOAD_BAR.labelFontSize}px`,
+                    family: DEFAULT_LOAD_BAR.labelFontFamily,
+                    weight:
+                        typeof DEFAULT_LOAD_BAR.labelFontWeight === "number"
+                            ? DEFAULT_LOAD_BAR.labelFontWeight
+                            : Number(DEFAULT_LOAD_BAR.labelFontWeight) || 400,
+                    style: "normal",
+                    size: DEFAULT_LOAD_BAR.labelFontSize,
                 },
                 defaultFontType: "sans-serif",
                 defaultFontSize: `${DEFAULT_LOAD_BAR.labelFontSize}px`,
@@ -2739,7 +2763,6 @@ addPropertyControls(Loading, {
                 title: "Placement",
                 options: ["inside", "outside", "inline", "hidden"],
                 optionTitles: ["Inside", "Outside", "Inline", "Hidden"],
-                displaySegmentedControl: true,
                 defaultValue: DEFAULT_LOAD_BAR.labelPlacement,
                 hidden: (label: any = {}, props: any = {}) => {
                     if (!(label.showLabel ?? DEFAULT_LOAD_BAR.showLabel)) return true

@@ -127,6 +127,23 @@
         * Integrated color profile system with theme switching
   updated: 2026-01-12
 
+- id: T-012
+  title: Remove finish delay prop from component and plugin
+  status: completed
+  summary: Removed finishDelay prop from both Loading.tsx and App.tsx since this functionality can be achieved in Framer.
+  attempts:
+    - when: 2026-01-12
+      result: success
+      notes:
+        * Removed finishDelay from LoadBarControls interface in both files
+        * Removed finishDelay from DEFAULT_LOAD_BAR object
+        * Removed finishDelay coalescing logic and usage in loading animation
+        * Removed finishDelay property control from Loading.tsx
+        * Removed finishDelay UI control from plugin App.tsx
+        * Removed finishDelay from history entry display
+  outcome: Finish delay prop completely removed - users can now achieve this functionality directly in Framer
+  updated: 2026-01-12
+
 ## Technical Decisions
 - **AgentMemory Established**: Created baseline AgentMemory per workflow on 2026-01-10 to capture ongoing tasks.
 - **VisualsSlider Component**: Custom React component that renders vertical lines with dynamic height based on normalized value. Removed range input in favor of direct pointer event handling on the lines container. Label integrated inside the box, no numerical value display. Fine-tuned positioning using relative CSS positioning for precise layout adjustments.
