@@ -23,8 +23,11 @@ export default defineConfig({
           warning.message?.includes('vibrate') ||
           warning.message?.includes('vr') ||
           warning.message?.includes('AhrefsAnalytics') ||
+          warning.message?.includes('already initialized') ||
           warning.message?.includes('allowfullscreen') ||
-          warning.message?.includes('Multiple instances of Three.js')
+          warning.message?.includes('will take precedence') ||
+          warning.message?.includes('Multiple instances of Three.js') ||
+          warning.message?.includes('Three.js')
         ) {
           return
         }
