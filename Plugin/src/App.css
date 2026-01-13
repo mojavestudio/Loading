@@ -6,10 +6,6 @@
     background: var(--bg-window, #111111);
     min-height: 100%;
     overflow: auto;
-    /* Add responsive scaling container */
-    transform-origin: top left;
-    width: 100%;
-    height: 100%;
 }
 
 .pluginHeader {
@@ -20,15 +16,15 @@
     width: 100%;
     display: flex;
     justify-content: center; /* Center in the full window width */
-    padding: 10px 0 27px 0;
+    padding: 10px 0 10px 0;
     overflow: visible;
 }
 
 .pluginTabs {
     display: flex;
     gap: 8px;
-    padding: 6px 0 10px;
-    margin: 0 0 6px;
+    padding: 1px 0 5px;
+    margin: -5px 0 -9px;
     border-bottom: 1px solid var(--border-soft);
     overflow-x: auto;
 }
@@ -1315,9 +1311,9 @@ button:focus-visible {
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
-    gap: 12px;
-    width: 100%;
+    gap: 8px;
     align-items: flex-end;
+    margin-top: -15px; /* moved up by 15px */
 }
 
 .settingsRow.settingsRow--trackBorderGroup > .trackBorder-row {
@@ -1326,6 +1322,7 @@ button:focus-visible {
     min-width: 76px;
     max-width: 240px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-top: 0; /* reset to original position */
 }
 
 .settingsRow.settingsRow--trackBorderGroup > .trackBorder-row > .trackBorderDrawer {
@@ -1489,7 +1486,7 @@ button:focus-visible {
     height: 37px;
     gap: 0;
     align-self: flex-end;
-    margin-top: -2px; /* nudged up by 2px */
+    margin-top: 13px; /* moved down by 15px (was -2px) */
 }
 .trackBorderDrawer:not(.is-active) .trackBorderDrawer-content {
     display: none;

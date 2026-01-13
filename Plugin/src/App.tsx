@@ -1119,7 +1119,7 @@ const DEFAULT_LOAD_BAR: LoadBarControls = {
     perpetual: false,
     perpetualGap: 0.5,
     barRadius: 4,
-    trackColor: "rgba(0,0,0,.12)",
+    trackColor: "#E0E0E0",
     showTrack: true,
     trackWidth: 2,
     circleGap: 12,
@@ -1142,7 +1142,7 @@ const DEFAULT_LOAD_BAR: LoadBarControls = {
     labelOutsideDirection: "bottom",
     showBorder: false,
     borderWidth: 2,
-    borderColor: "rgba(0,0,0,.2)",
+    borderColor: "#333333",
     lineWidth: 30,
     lineCount: 20,
 }
@@ -1205,7 +1205,7 @@ const SESSION_LIFETIME_MS = 8 * 60 * 60 * 1000
 const SESSION_LOCAL_KEY = "loading_gate_session"
 const SESSION_FORCE_FRESH_KEY = "loading_gate_force_fresh"
 const LEGACY_SESSION_KEY = "loading_gate_legacy_session"
-const __isLocal = typeof window !== "undefined" && window.location?.hostname === "localhost"
+const __isLocal = false
 
 let pluginDataPermissionWarningShown = false
 
@@ -1616,7 +1616,7 @@ const normalizeHistory = (value: unknown): InsertHistoryEntry[] => {
         })
         .filter(Boolean) as InsertHistoryEntry[]
     entries.sort((a, b) => b.savedAt - a.savedAt)
-    return entries.slice(0, 10)
+    return entries.slice(0, 2)
 }
 
 export function App() {
@@ -1727,10 +1727,31 @@ export function App() {
     const persistHistory = useCallback(async (entries: InsertHistoryEntry[]) => {
         const normalized = normalizeHistory(entries)
         saveHistoryLocal(normalized)
+        
+        // Check size before attempting to save (2KB = 2048 bytes)
+        const dataSize = new Blob([JSON.stringify(normalized)]).size
+        if (dataSize > 1800) { // Leave some margin
+            // Try with just the most recent entry
+            const singleEntry = normalized.slice(0, 1)
+            try {
+                await writeUserScopedPluginData(HISTORY_KEY, JSON.stringify(singleEntry))
+                return
+            } catch (singleError) {
+                return
+            }
+        }
+        
         try {
             await writeUserScopedPluginData(HISTORY_KEY, JSON.stringify(normalized))
-        } catch {
-            // ignore
+        } catch (error) {
+            if (error instanceof Error && error.message.includes('too large')) {
+                try {
+                    const reduced = normalized.slice(0, 1)
+                    await writeUserScopedPluginData(HISTORY_KEY, JSON.stringify(reduced))
+                } catch (fallbackError) {
+                    // Silent fail
+                }
+            }
         }
     }, [])
 
@@ -1942,9 +1963,11 @@ export function App() {
             .showUI({
                 width: 500,
                 height: nextHeight,
-                minWidth: 350,  // 70% of 500
-                minHeight: isCircleMode ? 308 : 259, // 70% of nextHeight
-                resizable: true,
+                minWidth: 500,
+                maxWidth: 500,
+                minHeight: nextHeight,
+                maxHeight: nextHeight,
+                resizable: false,
             })
             .catch(() => {})
     }, [isCircleMode])
@@ -2648,12 +2671,14 @@ export function App() {
                         </div>
                     </article>
                 </section>
+                {activeTab !== "history" && (
                 <footer className="loadingFooter">
                     <p>
                         © Mojave Studio LLC — Custom Automated Web Design Experts —{" "}
                         <a href="https://mojavestud.io" target="_blank" rel="noopener noreferrer">mojavestud.io</a>
                     </p>
                 </footer>
+                )}
             </main>
         )
     }
@@ -2661,15 +2686,15 @@ export function App() {
     // Calculate preview dimensions based on animation style
     const isTextMode = loadingControls.loadBar.animationStyle === "text"
     const gearSize = Math.max(gearTriggerWidth || 24, 16)
-    const heroPaddingTop = isCircleMode ? 15 : 20
-    const heroPaddingBottom = isCircleMode ? 10 : 18 + 20 + extraCirclePadding // keep preview/menu spacing consistent
+    const heroPaddingTop = isCircleMode ? 5 : 20
+    const heroPaddingBottom = isCircleMode ? 0 : 18 + 20 + extraCirclePadding // keep preview/menu spacing consistent
     const showTrackBorderControls =
         builder.controls.loadBar.animationStyle === "circle" || builder.controls.loadBar.animationStyle === "bar"
 
     return (
         <main className={`pluginRoot ${themeClass}`}>
             <header ref={headerRef} className="pluginHeader" />
-            <div className="heroFixedRegion">
+            <div className="heroFixedRegion" style={{ overflow: "visible" }}>
                 <section 
                     className="heroPreviewShell" 
                     style={{ 
@@ -2694,7 +2719,7 @@ export function App() {
                             style={{
                                 position: "absolute",
                                 left: "50%",
-                                top: isCircleMode ? 0 : "50%",
+                                top: isCircleMode ? -30 : "50%",
                                 transform: isCircleMode
                                     ? "translateX(-50%) translateX(-65px)"
                                     : "translate(-50%, -50%) translateX(-65px)",
@@ -3449,7 +3474,7 @@ export function App() {
                                     </div>
                                 )}
                             </div>
-                            <div className="settingsRow settingsRow--trackBorderGroup" style={{ gap: 10, flexWrap: "nowrap" }}>
+                            <div className="settingsRow settingsRow--trackBorderGroup" style={{ gap: 10, flexWrap: "nowrap", marginTop: "5px" }}>
                                 <button
                                     type="button"
                                     className={`toggleButton trackBorderToggle ${builder.controls.oncePerSession ? "is-active" : ""}`}
@@ -3540,12 +3565,14 @@ export function App() {
 	                </article>
             </section>
         </div>
+            {activeTab !== "history" && (
             <footer className="loadingFooter loadingFooter--main">
                 <p>
                     © Mojave Studio LLC — Custom Automated Web Design Experts —{" "}
                     <a href="https://mojavestud.io" target="_blank" rel="noopener noreferrer">mojavestud.io</a>
                 </p>
             </footer>
+            )}
         </main>
     )
 }
@@ -4455,7 +4482,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             ? textPerpetualProgress
             : effectiveProgress
 
-    const renderContent = () => {
+    const renderContent = useCallback(() => {
         const trackBackground = loadBar.showTrack ? loadBar.trackColor : "transparent"
         if (loadBar.animationStyle === "text") {
             if (resolvedTextFillStyle === "static") {
@@ -5280,7 +5307,6 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             const isLabelRight = loadBar.labelPosition === "right"
             const isLabelCenter = loadBar.labelPosition === "center"
 
-            const verticalGap = baseGap
             const insideAlignY =
                 loadBar.labelOutsideDirection === "top"
                     ? "flex-start"
@@ -5396,21 +5422,6 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             const previewBarOffsetX = reserveLeft + 40 + leftOnlyAdjustment
             
             const barOffsetX = previewBarOffsetX
-            const barLeft = barOffsetX
-            const barRight = barOffsetX + previewBarWidth
-            const barCenterX = barOffsetX + previewBarWidth / 2
-            // Calculate bar center Y position relative to outer container:
-            // Inner div: height = "100%" = 100% of wrapper's content area
-            // Wrapper content area = windowHeight - barExtraTop - barExtraBottom
-            // So inner div height = windowHeight - barExtraTop - barExtraBottom
-            // Bar: top = "50%" with translateY(-50%) → bar center at 50% of inner div height
-            // Bar center from top of inner div = (windowHeight - barExtraTop - barExtraBottom) / 2
-            // Inner div starts at barExtraTop from top of wrapper (wrapper padding)
-            // Bar center from top of wrapper = barExtraTop + (windowHeight - barExtraTop - barExtraBottom) / 2
-            // Wrapper is centered in outer container via flexbox, so wrapper top = 0 (wrapper height = windowHeight)
-            // Therefore: bar center from top of outer container = barExtraTop + (windowHeight - barExtraTop - barExtraBottom) / 2
-            const innerDivHeight = windowHeight - barExtraTop - barExtraBottom
-            const barCenterY = barExtraTop + innerDivHeight / 2
             const barOriginX = (() => {
                 if (loadBar.labelPosition === "center") return 0.5
                 const fillFromRight =
@@ -5617,7 +5628,32 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         }
 
         return null
-    }
+    }, [
+        loadBar,
+        label,
+        baseLabelStyle,
+        effectiveProgress,
+        textFillProgress,
+        resolvedTextFillStyle,
+        contentWidth,
+        contentHeight,
+        labelOffsetX,
+        labelOffsetY,
+        outsidePadding,
+        clampedWidth,
+        clampedHeight,
+        estimatedLabelHeight,
+        outsideLabelStyle,
+        outsideLabelTransforms,
+        barExtraTop,
+        barExtraBottom,
+        labelTextWidth,
+        outsideLabelPos,
+        effectiveLabelPlacement,
+        labelInline,
+        labelInside,
+        progressValue,
+    ])
 
     return (
         <div

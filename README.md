@@ -40,9 +40,41 @@ npm install react react-dom framer framer-motion
 
 ## Publishing
 
-This repo is ready to be initialized with git (run `git init` inside the folder). Commit `Plugin/Plugins/Loading.tsx` and `README.md`, then publish the repository via GitHub Desktop.
+This repository is ready for Git initialization and publishing. To set up:
 
-Feel free to open issues or PRs once the repo is online!
+```bash
+# Initialize git repository
+git init
+git add .
+git commit -m "Initial commit: Loading Gate component and plugin"
+
+# Create GitHub repository and push
+git branch -M main
+git remote add origin <your-github-repo-url>
+git push -u origin main
+```
+
+### Framer Plugin Publishing
+
+To package the plugin for Framer Marketplace:
+
+```bash
+# From the repository root
+cd Plugin
+npm install
+npm run build
+npm run pack
+```
+
+This creates `plugin.zip` in the Plugin directory, ready for Marketplace upload.
+
+### Component Publishing
+
+The Loading component (`Plugin/Plugins/Loading.tsx`) can be:
+1. Used directly in Framer projects via Git Sync
+2. Published as a shared module for broader distribution
+
+Feel free to open issues or PRs once the repository is online!
 
 ## Framer Plugin Layout
 

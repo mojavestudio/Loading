@@ -2,7 +2,7 @@
 if (typeof window !== "undefined") {
     // Override console.error to suppress the specific error
     const originalConsoleError = console.error
-    console.error = function(...args: any[]) {
+    console.error = function(...args: unknown[]) {
         const message = args.join(" ")
         if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
             // Suppress these specific errors
@@ -13,7 +13,7 @@ if (typeof window !== "undefined") {
     
     // Override console.warn to suppress the specific error
     const originalConsoleWarn = console.warn
-    console.warn = function(...args: any[]) {
+    console.warn = function(...args: unknown[]) {
         const message = args.join(" ")
         if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
             // Suppress these specific errors
@@ -22,6 +22,14 @@ if (typeof window !== "undefined") {
         originalConsoleWarn.apply(console, args)
     }
     
+interface ErrorEvent {
+    message?: string
+    error?: Error | string
+    preventDefault(): void
+    stopPropagation(): void
+    stopImmediatePropagation(): void
+}
+
     const suppressFramerError = (event: ErrorEvent) => {
         const message = event.message || String(event.error || "")
         if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
@@ -52,9 +60,9 @@ import { framer } from "framer-plugin"
 framer.showUI({
     width: 500,
     height: 370,
-    minWidth: 350,  // 70% of 500
-    minHeight: 259, // 70% of 370 (maintains aspect ratio)
-    resizable: true,
+    minWidth: 500,
+    maxWidth: 500,
+    resizable: false,
 })
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

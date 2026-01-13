@@ -5,15 +5,14 @@
  * - Ready = WindowLoad OR (WindowLoad + Fonts + Images [+Bg] + Quiet)
  * - Canvas/Thumbnail: gate logic disabled; renders a static preview
  * - Preview obeys Run in Preview
- * - Intrinsic sizing only (Framer handles layout/stacking)
+ * - Dynamic intrinsic sizing based on animation style:
+ *   - Bar: 600x100, Circle: 600x600, Text: 400x100
  * - Plugin insertion supports nested controls:
  *   - `bar` (primary) and `label` objects (property controls)
  *   - optional legacy `loadBar` object (back-compat)
  *   - optional direct top-level overrides (e.g. `labelPosition`, `startAtLabel`)
  */
 
-/** @framerIntrinsicWidth  600 */
-/** @framerIntrinsicHeight 50 */
 /** @framerSupportedLayoutWidth any-prefer-fixed */
 /** @framerSupportedLayoutHeight any-prefer-fixed */
 /** @framerDisableUnlink */
@@ -176,7 +175,7 @@ const DEFAULT_LOAD_BAR: LoadBarConfig = {
     perpetual: false,
     perpetualGap: 0.5,
     barRadius: 4,
-    trackColor: "rgba(0,0,0,.12)",
+    trackColor: "#E0E0E0",
     showTrack: true,
     trackWidth: 8,
     circleGap: 12,
@@ -207,7 +206,7 @@ const DEFAULT_LOAD_BAR: LoadBarConfig = {
     labelOffsetY: 0,
     showBorder: false,
     borderWidth: 2,
-    borderColor: "rgba(0,0,0,.2)",
+    borderColor: "#333333",
 }
 
 const MIN_TIMER_PROGRESS_WEIGHT = 0.8
@@ -969,21 +968,12 @@ export default function Loading(p: Props) {
     const intrinsicSize = (() => {
         switch (animationStyle) {
             case "circle":
-                return { width: 300, height: 300 }
+                return { width: 400, height: 400 }
             case "bar": {
-                const barHeightForIntrinsic = Math.max(
-                    height,
-                    estimatedLabelHeight
-                )
-                const requiredHeight =
-                    barHeightForIntrinsic +
-                    LABEL_VERTICAL_OFFSET * 2 +
-                    BAR_EXTRA_TOP +
-                    BAR_EXTRA_BOTTOM
-                return { width: 600, height: Math.max(50, Math.ceil(requiredHeight)) }
+                return { width: 600, height: 100 }
             }
             case "text":
-                return { width: 300, height: 50 }
+                return { width: 400, height: 100 }
             default:
                 return { width: 300, height: 300 }
         }
@@ -1147,8 +1137,8 @@ export default function Loading(p: Props) {
 
     const rootStyle: React.CSSProperties = {
         ...p.style,
-        width: p.style?.width ?? "100%",
-        height: p.style?.height ?? "100%",
+        width: p.style?.width ?? (typeof p.style?.width === "string" && p.style.width.includes("%") ? "100%" : intrinsicSize.width),
+        height: p.style?.height ?? (typeof p.style?.height === "string" && p.style.height.includes("%") ? "100%" : intrinsicSize.height),
         position: "relative",
         boxSizing: "border-box",
         paddingTop: outsidePadding.top,
@@ -2588,7 +2578,7 @@ addPropertyControls(Loading, {
         hidden: (bar: any = {}) =>
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text",
       },
-            startAtLabel: {
+      startAtLabel: {
         type: ControlType.Boolean,
         title: "Start at Label",
         defaultValue: DEFAULT_LOAD_BAR.startAtLabel,
