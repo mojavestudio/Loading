@@ -3,7 +3,7 @@
   "name": "Loading…",
   "slug": "loading-gate",
   "description": "Configure and insert the Loading Gate component with licensing and auth safeguards.",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "icon": "/icon.svg",
   "modes": ["canvas", "code"]
 }

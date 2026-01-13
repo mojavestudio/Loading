@@ -98,7 +98,12 @@ export default [
         ArrayBuffer: 'readonly',
         SharedArrayBuffer: 'readonly',
         Atomics: 'readonly',
-        WebAssembly: 'readonly'
+        WebAssembly: 'readonly',
+        sessionStorage: 'readonly',
+        requestAnimationFrame: 'readonly',
+        cancelAnimationFrame: 'readonly',
+        performance: 'readonly',
+        SVGCircleElement: 'readonly'
       }
     },
     plugins: {
