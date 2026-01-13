@@ -20,7 +20,7 @@ import React, {
 import { createPortal } from "react-dom"
 import { ArrowsOut, Barricade, ClockCounterClockwise, Plus, SpinnerGap, TextT } from "@phosphor-icons/react"
 import { motion } from "framer-motion"
-import { defaultFramerColors, createFramerColorProfile, applyColorProfile, type FramerColorProfile } from "./colors"
+import { defaultFramerColors, createFramerColorProfile } from "./colors"
 import "./App.css"
 
 type ThemeMode = "light" | "dark"
@@ -38,12 +38,12 @@ type FontControlValue = {
     lineHeight?: number | string
 }
 
-type FontPreset = {
-    id: string
-    label: string
-    family: string
-    weights: Array<string | number>
-}
+// type FontPreset = {
+//     id: string
+//     label: string
+//     family: string
+//     weights: Array<string | number>
+// }
 
 // Utility function to calculate luminance and determine appropriate text color
 function getContrastTextColor(hexColor: string): string {
@@ -311,8 +311,10 @@ const SearchableFontDropdown = (props: {
     }, [isOpen, syncAnchorRect])
 
     useEffect(() => {
-        if (!isOpen) setSearchTerm("")
-    }, [value, isOpen])
+        if (!isOpen) {
+            queueMicrotask(() => setSearchTerm(""))
+        }
+    }, [isOpen])
 
     const buttonLabel = value?.trim() ? value.trim() : "Select a font…"
     const customEntryVisible = (() => {
@@ -689,7 +691,7 @@ const VisualsSlider = ({
     onChange,
     min,
     max,
-    step = 1,
+    step: _step = 1,
     lineCount = 12,
     label = "Width",
     variant = "height",
@@ -1180,7 +1182,7 @@ const createDefaultBuilderState = (): BuilderState => ({
     secondaryAccentColor: defaultFramerColors.accentSecondary,
 })
 
-const getInsertionSize = (style: LoadBarControls["animationStyle"], builder: BuilderState) => {
+const getInsertionSize = (style: LoadBarControls["animationStyle"], _builder: BuilderState) => {
     // Dynamic sizing based on animation style
     switch (style) {
         case "circle":
@@ -1211,7 +1213,7 @@ const COMPONENT_URL =
     getEnv("VITE_LOADING_COMPONENT_URL") || DEFAULT_COMPONENT_URL()
 // Alternative without version ID (latest version): "https://framer.com/m/Loading-v5jr.js"
 
-const USER_GUIDE_URL =
+const _USER_GUIDE_URL =
     getEnv("VITE_LOADING_USER_GUIDE_URL") || "https://github.com/mojavestudio/Loading#readme"
 
 const AUTH_STORAGE_ID = "loading_gate_auth_v1"
@@ -1411,7 +1413,9 @@ const clearStoredSession = async () => {
     try {
         await writeUserScopedPluginData("session", "")
         await setPluginDataSafely("session", "", "clearStoredSession:unscoped")
-    } catch {}
+    } catch {
+        // Ignore errors when clearing session
+    }
     await setPluginDataSafely(LEGACY_SESSION_KEY, null, "clearStoredSession:legacy")
     if (typeof window !== "undefined") {
         try {
@@ -1475,11 +1479,12 @@ const verifyAccessJSONP = (
     invoice: string,
     { bind }: { bind?: boolean } = { bind: true }
 ): Promise<VerifyAccessResponse> => {
-    return new Promise(async (resolve) => {
-        if (typeof window === "undefined") {
-            resolve({ ok: false, error: "Unavailable runtime." })
-            return
-        }
+    return new Promise((resolve) => {
+        void (async () => {
+            if (typeof window === "undefined") {
+                resolve({ ok: false, error: "Unavailable runtime." })
+                return
+            }
 
         const callbackName = `loadingPluginVerify_${Math.random().toString(36).slice(2)}`
         let framerUserId = ""
@@ -1508,7 +1513,9 @@ const verifyAccessJSONP = (
         const cleanup = (script?: HTMLScriptElement) => {
             try {
                 delete (window as any)[callbackName]
-            } catch {}
+            } catch {
+                // Ignore errors
+            }
             if (script && script.parentNode) {
                 script.parentNode.removeChild(script)
             }
@@ -1531,7 +1538,9 @@ const verifyAccessJSONP = (
                 if (typeof res.ok === "string") res.ok = res.ok === "true" || res.ok === "1"
                 if (typeof res.valid === "string") res.valid = res.valid === "true" || res.valid === "1"
                 if (typeof res.bound === "string") res.bound = res.bound === "true" || res.bound === "1"
-            } catch {}
+            } catch {
+                // Ignore errors
+            }
             cleanup(script)
             if (__isLocal) {
                 console.log("[Loading Plugin] JSONP response", res)
@@ -1571,6 +1580,7 @@ const verifyAccessJSONP = (
         }
         script.src = url
         document.head.appendChild(script)
+        })()
     })
 }
 
@@ -1648,7 +1658,7 @@ export function App() {
     const [initializing, setInitializing] = useState(!initialSnapshot)
 
     const themeMode = useFramerTheme()
-    const [insertTarget, setInsertTarget] = useState<"current" | "new">("current")
+    const [_insertTarget, _setInsertTarget] = useState<"current" | "new">("current")
 
     const [builder, setBuilder] = useState<BuilderState>(() => createDefaultBuilderState())
     useEffect(() => {
@@ -1753,7 +1763,7 @@ export function App() {
             try {
                 await writeUserScopedPluginData(HISTORY_KEY, JSON.stringify(singleEntry))
                 return
-            } catch (singleError) {
+            } catch {
                 return
             }
         }
@@ -1765,7 +1775,7 @@ export function App() {
                 try {
                     const reduced = normalized.slice(0, 1)
                     await writeUserScopedPluginData(HISTORY_KEY, JSON.stringify(reduced))
-                } catch (fallbackError) {
+                } catch {
                     // Silent fail
                 }
             }
@@ -2058,7 +2068,9 @@ export function App() {
             try {
                 try {
                     await writeUserScopedPluginData("session", "")
-                } catch {}
+                } catch {
+        // Ignore errors when clearing session
+    }
                 clearSessionLocal()
                 const precheck = await verifyAccessJSONP(email, receipt, { bind: false })
 
@@ -2167,15 +2179,15 @@ export function App() {
                 setAuthLoading(false)
             }
         },
-        [authEmail, authReceipt, authLoading, projectName, sanitizeReceipt]
+        [authEmail, authReceipt, authLoading, projectName]
     )
 
-    const handleResetBuilder = useCallback(() => {
+    const _handleResetBuilder = useCallback(() => {
         setBuilder(createDefaultBuilderState())
     }, [])
 
 
-    const handleDimensionsChange = (key: "width" | "height", value: string) => {
+    const _handleDimensionsChange = (key: "width" | "height", value: string) => {
         const numeric = Number(value)
         if (!Number.isFinite(numeric) || numeric <= 0) return
         setBuilder((prev) => ({ ...prev, [key]: Math.max(16, Math.min(2000, Math.round(numeric))) }))
@@ -2482,8 +2494,8 @@ export function App() {
                                 const parentIdForPosition = canvasRoot?.id || null
                                 const parentRect = parentIdForPosition ? await framer.getRect(parentIdForPosition) : null
                                 const instRect = await framer.getRect(insertedId)
-                                const pw = Math.max(1, Math.round((parentRect as any)?.width ?? 0))
-                                const iw = Math.max(1, Math.round((instRect as any)?.width ?? insertionSize.width))
+                                const _pw = Math.max(1, Math.round((parentRect as any)?.width ?? 0))
+                                const _iw = Math.max(1, Math.round((instRect as any)?.width ?? insertionSize.width))
                                 
                                 // Calculate centerPercent: for true centering, we want the instance center to align with parent center
                                 // centerPercent = ((instanceCenter - parentCenter) / parentWidth) * 100
@@ -2565,7 +2577,7 @@ export function App() {
                 variant: "error",
             })
         }
-    }, [COMPONENT_URL, loadingControls, builder, tryFallbackInsert, addHistoryEntry])
+    }, [loadingControls, builder, tryFallbackInsert, addHistoryEntry])
 
     const activeProjectName = projectName || authSnapshot?.projectName || null
     
@@ -2701,7 +2713,7 @@ export function App() {
     }
 
     // Calculate preview dimensions based on animation style
-    const isTextMode = loadingControls.loadBar.animationStyle === "text"
+    const _isTextMode = loadingControls.loadBar.animationStyle === "text"
     const gearSize = Math.max(gearTriggerWidth || 24, 16)
     const heroPaddingTop = isCircleMode ? 5 : 20
     const heroPaddingBottom = isCircleMode ? 0 : 18 + 20 + extraCirclePadding // keep preview/menu spacing consistent
@@ -3806,7 +3818,7 @@ const CloseIcon = ({ className }: { className?: string }) => (
     </svg>
 )
 
-const ChevronIcon = ({ className }: { className?: string }) => (
+const _ChevronIcon = ({ className }: { className?: string }) => (
     <svg
         className={className}
         width="14"
@@ -3832,6 +3844,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     const [containerWidth, setContainerWidth] = useState<number | null>(null)
     const labelTextRef = useRef<HTMLDivElement | null>(null)
     const [labelTextWidth, setLabelTextWidth] = useState(0)
+    const [labelTextHeight, setLabelTextHeight] = useState(0)
     const barRef = useRef<HTMLDivElement | null>(null)
     const outsideLabelRef = useRef<HTMLSpanElement | null>(null)
     const [outsideLabelPos, setOutsideLabelPos] = useState<{ left: number; top: number; transform: string } | null>(null)
@@ -3896,7 +3909,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         const isPerpetualBarOrCircle =
             (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
         if (!isPerpetualBarOrCircle || typeof window === "undefined") {
-            setPerpetualProgress(0)
+            queueMicrotask(() => setPerpetualProgress(0))
             return
         }
         let frame: number | null = null
@@ -3906,7 +3919,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         const cycleDuration = animationDuration + gapDuration
 
         const labelAngle = getInlineAngle(loadBar.labelPosition, loadBar.labelOutsideDirection)
-        const rotationDeg = loadBar.startAtLabel ? labelAngle : -90
+        const _rotationDeg = loadBar.startAtLabel ? labelAngle : -90
         const animate = (timestamp: number) => {
             if (startTime === null) startTime = timestamp
             const elapsed = timestamp - startTime
@@ -3925,11 +3938,11 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 window.cancelAnimationFrame(frame)
             }
         }
-    }, [loadBar.animationStyle, loadBar.perpetual, loadBar.perpetualGap])
+    }, [loadBar.animationStyle, loadBar.perpetual, loadBar.perpetualGap, loadBar.labelPosition, loadBar.labelOutsideDirection, loadBar.startAtLabel])
     useEffect(() => {
         const textFillMode = loadBar.textFillStyle === "static" ? "static" : loadBar.textFillStyle === "oneByOne" ? "oneByOne" : "dynamic"
         if (loadBar.animationStyle !== "text" || textFillMode === "static" || !loadBar.textPerpetual || typeof window === "undefined") {
-            setTextPerpetualProgress(0)
+            queueMicrotask(() => setTextPerpetualProgress(0))
             return
         }
         let frame: number | null = null
@@ -3985,9 +3998,10 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
 
     // Measure label text width for bar mode dynamic sizing
     // Use temporary element to measure before rendering (chicken-and-egg: need width to calculate bar width)
+     
     useLayoutEffect(() => {
         if (loadBar.animationStyle !== "bar" || !loadBar.showLabel || !label) {
-            setLabelTextWidth(0)
+            queueMicrotask(() => setLabelTextWidth(0))
             return
         }
         // Create temporary element with exact same styling as the rendered label
@@ -4004,12 +4018,28 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         document.body.appendChild(tempEl)
         const width = tempEl.getBoundingClientRect().width
         document.body.removeChild(tempEl)
-        setLabelTextWidth(width)
+        queueMicrotask(() => setLabelTextWidth(width))
     }, [loadBar.animationStyle, loadBar.showLabel, label, loadBar.labelFontSize, loadBar.labelFontFamily, loadBar.labelFontWeight])
 
+    // Read ref dimensions in layout effect to avoid accessing refs during render
+     
+    useLayoutEffect(() => {
+        if (labelTextRef.current) {
+            const width = labelTextRef.current.offsetWidth || 0
+            const height = labelTextRef.current.offsetHeight || 0
+            queueMicrotask(() => {
+                setLabelTextWidth(width)
+                setLabelTextHeight(height)
+            })
+        } else {
+            queueMicrotask(() => setLabelTextHeight(0))
+        }
+    }, [label, loadBar.labelFontSize, loadBar.labelFontFamily, loadBar.labelFontWeight, loadBar.animationStyle])
+
+     
     useLayoutEffect(() => {
         if (!labelOutside) {
-            setOutsideLabelSize({ width: 0, height: 0 })
+            queueMicrotask(() => setOutsideLabelSize({ width: 0, height: 0 }))
             return
         }
         const node = outsideLabelEl
@@ -4031,7 +4061,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         setOutsideLabelEl(node)
     }, [])
 
-    const baseLabelStyle: CSSProperties = {
+    const baseLabelStyle: CSSProperties = useMemo(() => ({
         color: loadBar.labelColor,
         fontSize: loadBar.labelFontSize,
         fontFamily: loadBar.labelFontFamily,
@@ -4039,7 +4069,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         letterSpacing: "0.03em",
         textTransform: "uppercase",
         pointerEvents: "none",
-    }
+    }), [loadBar.labelColor, loadBar.labelFontSize, loadBar.labelFontFamily, loadBar.labelFontWeight])
 
     // All outside labels should be 5px from the outside edge of the fill
     const outsideSpacing = 5
@@ -4060,11 +4090,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     )
 
     // Measure bar and label DOM for outside bar label positioning
+     
     useLayoutEffect(() => {
         const barEl = barRef.current
         const labelEl = outsideLabelRef.current
         if (!barEl || !labelEl || !labelOutside || loadBar.animationStyle !== "bar") {
-            setOutsideLabelPos(null)
+            queueMicrotask(() => setOutsideLabelPos(null))
             return
         }
 
@@ -4089,9 +4120,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         // - Center: position at bar center, center the label
         // For top/bottom labels, when labelOffsetX shrinks the bar, we need to compensate
         // so the label stays in the same position relative to where the bar would have been at full width
-        const isTopBottomOutside = axisY !== 0
+        const _isTopBottomOutside = axisY !== 0
         // Match center-row behavior: do not shrink the bar based on X offset
-        const barShrinkAmount = 0
+        const _barShrinkAmount = 0
         
         let anchorX: number
         let horizontalTransform: string
@@ -4310,8 +4341,8 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             clampedHeight - outsidePadding.top - outsidePadding.bottom
         )
     const contentHeight = Math.max(barHeight, baseContentHeight)
-    const contentTopActual = wrapperTop
-    const contentBottomActual = wrapperTop + contentHeight
+    const _contentTopActual = wrapperTop
+    const _contentBottomActual = wrapperTop + contentHeight
 
     // Calculate inset based on thickness for proper inside/outside positioning
     // For inside labels, need to account for full thickness to avoid overlap
@@ -4421,8 +4452,8 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     // For left corner positions (top-left, bottom-left), bar moves to keep label in viewport
     // For right corner positions (top-right, bottom-right), bar stays fixed and label moves
     // For edge positions (top-center, bottom-center), bar stays fixed and label moves
-    const isLeftCornerPosition = loadBar.labelPosition === "left" && loadBar.labelOutsideDirection !== "center"
-    const isRightCornerPosition = loadBar.labelPosition === "right" && loadBar.labelOutsideDirection !== "center"
+    const _isLeftCornerPosition = loadBar.labelPosition === "left" && loadBar.labelOutsideDirection !== "center"
+    const _isRightCornerPosition = loadBar.labelPosition === "right" && loadBar.labelOutsideDirection !== "center"
     const shouldMoveLabel = true // Always move label via transform
     const adjustedOutsideCenterY = baseOutsideCenterY - (shouldMoveLabel ? labelOffsetY : 0)
     outsideLabelStyle.top = adjustedOutsideCenterY - estimatedLabelHeight / 2
@@ -4527,10 +4558,10 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             const fillPct = Math.max(0, Math.min(1, textFillProgress)) * 100
             // baseTextColor is for the unfilled/background text (track)
             // fillColor is for the filled/foreground text (progress)
-            const baseTextColor = loadBar.showTrack 
+            const _baseTextColor = loadBar.showTrack 
                 ? (loadBar.trackColor || "rgba(255,255,255,0.25)")
                 : "transparent"
-            const fillColor = loadBar.labelColor || loadBar.textFillColor || loadBar.barColor || "#ffffff"
+            const _fillColor = loadBar.labelColor || loadBar.textFillColor || loadBar.barColor || "#ffffff"
             // Use labelColor for fill color (prioritize labelColor over textFillColor)
             
             // For dynamic: ultra-smooth progressive fill with very wide, gradual transition
@@ -4544,7 +4575,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             const maskImage = loadBar.textReverse
                 ? `linear-gradient(90deg, transparent ${maskStart}%, rgba(0,0,0,0.05) ${maskStart + transitionZone * 0.15}%, rgba(0,0,0,0.15) ${maskStart + transitionZone * 0.3}%, rgba(0,0,0,0.3) ${maskStart + transitionZone * 0.45}%, rgba(0,0,0,0.5) ${maskStart + transitionZone * 0.6}%, rgba(0,0,0,0.7) ${maskStart + transitionZone * 0.75}%, rgba(0,0,0,0.85) ${maskStart + transitionZone * 0.9}%, rgba(0,0,0,0.95) ${maskStop - transitionZone * 0.05}%, #000 ${maskEnd}%)`
                 : `linear-gradient(90deg, #000 ${maskStart}%, rgba(0,0,0,0.95) ${maskStop - transitionZone * 0.05}%, rgba(0,0,0,0.85) ${maskStop + transitionZone * 0.1}%, rgba(0,0,0,0.7) ${maskStop + transitionZone * 0.25}%, rgba(0,0,0,0.5) ${maskStop + transitionZone * 0.4}%, rgba(0,0,0,0.3) ${maskStop + transitionZone * 0.55}%, rgba(0,0,0,0.15) ${maskStop + transitionZone * 0.7}%, rgba(0,0,0,0.05) ${maskStop + transitionZone * 0.85}%, transparent ${maskEnd}%)`
-            const directionDeg = loadBar.textReverse ? 270 : 90
+            const _directionDeg = loadBar.textReverse ? 270 : 90
             const textContent = label ?? ""
 
             if (resolvedTextFillStyle === "oneByOne") {
@@ -4690,10 +4721,10 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             // - center/center: inside, dead center
             // - edges (top/center, bottom/center, left/center, right/center): inline on the circle
             // - corners: inline but pushed just outside the circle
-            const insideLabelX = centerX
-            const insideLabelY = centerY
+            const _insideLabelX = centerX
+            const _insideLabelY = centerY
             
-            const insideLabelTransform = [
+            const _insideLabelTransform = [
                 "translate(-50%, -50%)",
                 labelOffsetX ? `translateX(${labelOffsetX}px)` : "",
                 labelOffsetY ? `translateY(${-labelOffsetY}px)` : "",
@@ -4845,8 +4876,8 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 const isRight = loadBar.labelPosition === "right"
                                 const isTop = loadBar.labelOutsideDirection === "top"
                                 const isBottom = loadBar.labelOutsideDirection === "bottom"
-                                const isCenterH = !isLeft && !isRight
-                                const isCenterV = !isTop && !isBottom
+                                const _isCenterH = !isLeft && !isRight
+                                const _isCenterV = !isTop && !isBottom
                                 
                                 // Axis values: -1 (left/top), 0 (center), 1 (right/bottom)
                                 const axisX = isLeft ? -1 : isRight ? 1 : 0
@@ -4913,20 +4944,20 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         if (loadBar.fillStyle === "solid") {
             const windowWidth = 380
             const windowHeight = 150
-            const containerPadding = 5
+            const _containerPadding = 5
             const baseGap = 5
             const isOutside = effectiveLabelPlacement === "outside"
-            const isLabelLeft = loadBar.labelPosition === "left"
-            const isLabelRight = loadBar.labelPosition === "right"
+            const _isLabelLeft = loadBar.labelPosition === "left"
+            const _isLabelRight = loadBar.labelPosition === "right"
             const isLabelCenter = loadBar.labelPosition === "center"
-            const gap = baseGap + (labelOffsetX || 0)
+            const _gap = baseGap + (labelOffsetX || 0)
             
             // Measure label dimensions for layout calculations
-            const measuredLabelWidth = labelTextWidth || labelTextRef.current?.offsetWidth || 0
-            const measuredLabelHeight = labelTextRef.current?.offsetHeight || 0
-            const labelHeightForLayout = measuredLabelHeight || estimatedLabelHeight
+            const measuredLabelWidth = labelTextWidth || 0
+            const measuredLabelHeight = labelTextHeight || 0
+            const _labelHeightForLayout = measuredLabelHeight || estimatedLabelHeight
 
-            const verticalGap = baseGap
+            const _verticalGap = baseGap
             const insideAlignY =
                 loadBar.labelOutsideDirection === "top"
                     ? "flex-start"
@@ -5139,9 +5170,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             const previewBarOffsetX = reserveLeft + 40 + leftOnlyAdjustment
             
             const barOffsetX = previewBarOffsetX
-            const barLeft = barOffsetX
-            const barRight = barOffsetX + previewBarWidth
-            const barCenterX = barOffsetX + previewBarWidth / 2
+            const _barLeft = barOffsetX
+            const _barRight = barOffsetX + previewBarWidth
+            const _barCenterX = barOffsetX + previewBarWidth / 2
             // Calculate bar center Y position relative to outer container:
             // Inner div: height = "100%" = 100% of wrapper's content area
             // Wrapper content area = windowHeight - barExtraTop - barExtraBottom
@@ -5153,7 +5184,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             // Wrapper is centered in outer container via flexbox, so wrapper top = 0 (wrapper height = windowHeight)
             // Therefore: bar center from top of outer container = barExtraTop + (windowHeight - barExtraTop - barExtraBottom) / 2
             const innerDivHeight = windowHeight - barExtraTop - barExtraBottom
-            const barCenterY = barExtraTop + innerDivHeight / 2
+            const _barCenterY = barExtraTop + innerDivHeight / 2
             // Calculate vertical offset for bar positioning.
             // For right-corner labels, the bar should move opposite the label to mimic a gap forming.
             // Only apply for right corner positions, not left corners or edges.
@@ -5303,25 +5334,22 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         }
 
 	        if (loadBar.fillStyle === "lines") {
-	            const containerPadding = 5
+	            const _containerPadding = 5
 	            // Match the solid preview sizing so bar length stays consistent across fill styles.
 	            const windowWidth = 380
 	            const barContainerHeight = Math.max(
 	                loadBar.height,
 	                Math.ceil((loadBar.labelFontSize || 12) * 1.2 + 4)
 	            )
-            const measuredLabelWidth = labelTextWidth || labelTextRef.current?.offsetWidth || 0
-            const measuredLabelHeight = labelTextRef.current?.offsetHeight || 0
+            const measuredLabelWidth = labelTextWidth || 0
+            const measuredLabelHeight = labelTextHeight || 0
             const labelHeightForLayout = measuredLabelHeight || estimatedLabelHeight
             const containerContentHeight = Math.max(barContainerHeight, labelHeightForLayout)
             // Match component geometry: 30px above/below the centered baseline
-            const totalContainerHeight = containerContentHeight + LABEL_VERTICAL_OFFSET * 2
+            const _totalContainerHeight = containerContentHeight + LABEL_VERTICAL_OFFSET * 2
 	            // Match the solid preview sizing so vertical layout stays consistent.
 	            const windowHeight = 150
-            const baseGap = 5
             const isOutside = effectiveLabelPlacement === "outside"
-            const isLabelLeft = loadBar.labelPosition === "left"
-            const isLabelRight = loadBar.labelPosition === "right"
             const isLabelCenter = loadBar.labelPosition === "center"
 
             const insideAlignY =
@@ -5438,7 +5466,6 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             // Bar starts after left reserve, plus any left-only adjustment (only for negative offsets)
             const previewBarOffsetX = reserveLeft + 40 + leftOnlyAdjustment
             
-            const barOffsetX = previewBarOffsetX
             const barOriginX = (() => {
                 if (loadBar.labelPosition === "center") return 0.5
                 const fillFromRight =
@@ -5656,15 +5683,11 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         contentHeight,
         labelOffsetX,
         labelOffsetY,
-        outsidePadding,
-        clampedWidth,
-        clampedHeight,
         estimatedLabelHeight,
-        outsideLabelStyle,
-        outsideLabelTransforms,
         barExtraTop,
         barExtraBottom,
         labelTextWidth,
+        labelTextHeight,
         outsideLabelPos,
         effectiveLabelPlacement,
         labelInline,

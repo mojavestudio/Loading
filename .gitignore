@@ -5,3 +5,4 @@ dist/
 plugin.zip
 *.map
 .DS_Store
+.cursor/

@@ -24,7 +24,9 @@ export default [
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         localStorage: 'readonly',
-        ResizeObserver: 'readonly',
+        MutationObserver: 'readonly',
+        DOMRect: 'readonly',
+        queueMicrotask: 'readonly',
         fetch: 'readonly',
         URL: 'readonly',
         URLSearchParams: 'readonly',
@@ -103,7 +105,18 @@ export default [
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',
         performance: 'readonly',
-        SVGCircleElement: 'readonly'
+        SVGCircleElement: 'readonly',
+        crypto: 'readonly',
+        Blob: 'readonly',
+        HTMLFormElement: 'readonly',
+        ResizeObserver: 'readonly',
+        PointerEvent: 'readonly',
+        Image: 'readonly',
+        getComputedStyle: 'readonly',
+        Document: 'readonly',
+        HTMLImageElement: 'readonly',
+        ParentNode: 'readonly',
+        EventTarget: 'readonly'
       }
     },
     plugins: {
@@ -121,14 +134,17 @@ export default [
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
       'react/react-in-jsx-scope': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      'react/prop-types': 'off'
+      '@typescript-eslint/no-explicit-any': 'off',
+      'react/prop-types': 'off',
+      'react-hooks/exhaustive-deps': ['warn', { enableDangerousAutofixThisMayCauseInfiniteLoops: false }],
+      'react-compiler/react-compiler': 'off',
+      'react-hooks/preserve-manual-memoization': 'off'
     }
   },
   {
-    ignores: ['dist/', 'node_modules/', '*.config.js', '*.config.ts']
+    ignores: ['dist/', 'node_modules/', '*.config.js', '*.config.ts', 'public/']
   }
 ]

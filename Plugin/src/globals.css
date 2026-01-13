@@ -6,7 +6,7 @@
     /* Framer Color Profile */
     --bg-window: #111111;
     --bg-secondary: #1D1D1D;
-    --input-background: #1D1D1D;
+    --input-background: #1C1C1C;
     --surface-card: #1a1a1a;
     --surface-panel: #161616;
     --surface-background: #111111;
@@ -48,7 +48,7 @@
 .loadingSettings select {
     font-size: 10px;
     padding: 4px 8px;
-    background-color: var(--surface-card);
+    background-color: var(--input-background);
     color: var(--text-primary);
 }
 
@@ -63,7 +63,7 @@ select {
     line-height: 17px;
     font-size: 12px;
     font-family: monospace;
-    background-color: var(--surface-card);
+    background-color: var(--input-background);
     color: var(--text-primary);
     width: 100%;
     max-width: 100%;

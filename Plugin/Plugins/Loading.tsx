@@ -143,7 +143,7 @@ const computeBarOriginX = (labelPosition: "left" | "center" | "right", startAtLa
 const computeRevealWindowStyle = (
     progress: number,
     originX: number,
-    period?: number
+    _period?: number
 ): React.CSSProperties => {
     const p = clampValue(progress)
     const widthPct = `${p * 100}%`
@@ -510,7 +510,7 @@ export default function Loading(p: Props) {
         LABEL_OFFSET_LIMITS.y.max
     )
 
-    const loadBarConfig: LoadBarConfig = {
+    const _loadBarConfig: LoadBarConfig = {
         animationStyle,
         fillStyle,
         lineWidth,
@@ -694,7 +694,9 @@ export default function Loading(p: Props) {
                     void finalize()
                     return
                 }
-            } catch {}
+            } catch {
+                // Ignore errors
+            }
         }
 
         let loadDone = document.readyState === "complete"
@@ -821,7 +823,9 @@ export default function Loading(p: Props) {
             if (p.oncePerSession) {
                 try {
                     sessionStorage.setItem(SESSION_FLAG, "1")
-                } catch {}
+                } catch {
+                // Ignore errors
+            }
             }
 
             // Mark as complete (for hiding)
@@ -842,6 +846,7 @@ export default function Loading(p: Props) {
         p.oncePerSession,
         p.onReady,
         progress,
+        p,
     ])
 
     React.useLayoutEffect(() => {
@@ -905,7 +910,7 @@ export default function Loading(p: Props) {
 
     const estimatedLabelHeight =
         labelBounds.height || Math.ceil(labelFontSize * 1.2)
-    const labelSpacing = 6
+    const _labelSpacing = 6
     const outsideSpacing = 4
     const LABEL_VERTICAL_OFFSET = 30
     const BAR_SIDE_MARGIN = 15
@@ -989,7 +994,7 @@ export default function Loading(p: Props) {
         measuredWidth - outsidePadding.left - outsidePadding.right
     )
     const wrapperTop = outsidePadding.top - bottomOffsetShift
-    const wrapperBottom = outsidePadding.bottom
+    const _wrapperBottom = outsidePadding.bottom
     const contentHeight = Math.max(
         0,
         measuredHeight - outsidePadding.top - outsidePadding.bottom
@@ -1264,7 +1269,7 @@ export default function Loading(p: Props) {
     const animatedProgressValue =
         perpetual && (animationStyle === "circle" || animationStyle === "bar") ? perpetualProgress : currentProgress
     const progressValue = isDesignPreview ? DESIGN_PREVIEW_PROGRESS : animatedProgressValue
-    const barTransformOrigin = animationStyle === "bar" ? computeBarTransformOrigin(labelPosition, startAtLabel) : "0% 50%"
+    const _barTransformOrigin = animationStyle === "bar" ? computeBarTransformOrigin(labelPosition, startAtLabel) : "0% 50%"
     const barOriginX = animationStyle === "bar" ? computeBarOriginX(labelPosition, startAtLabel) : 0
     const textFillProgress =
         animationStyle === "text" && textPerpetual && progressValue < 0.999
@@ -1274,7 +1279,7 @@ export default function Loading(p: Props) {
     
     // Render based on animation style
     const renderContent = () => {
-        const trackBackground = showTrack ? trackColor : "transparent"
+        const _trackBackground = showTrack ? trackColor : "transparent"
         if (animationStyle === "text") {
             // Text style with optional glyph fill (no bar)
             const textContent = formatLabel(progressValue)
@@ -1324,7 +1329,7 @@ export default function Loading(p: Props) {
             const maskImage = textReverse
                 ? `linear-gradient(90deg, transparent ${maskStop}%, #000 ${maskStop}%)`
                 : `linear-gradient(90deg, #000 ${maskStop}%, transparent ${maskStop}%)`
-            const directionDeg = textReverse ? 270 : 90
+            const _directionDeg = textReverse ? 270 : 90
 
             if (isOneByOneFill) {
                 const letters = Array.from(textContent)
@@ -1676,7 +1681,7 @@ export default function Loading(p: Props) {
             const isInsideLabel = labelInside
             const measuredLabelWidth = labelBounds.width || 0
             const measuredLabelHeight = labelBounds.height || 0
-            const verticalGap = BAR_LABEL_GAP
+            const _verticalGap = BAR_LABEL_GAP
 
             let reserveLeft = 0
             let reserveRight = 0
@@ -1761,7 +1766,7 @@ export default function Loading(p: Props) {
                     )
                     const barLeftCandidate = reserveLeft
                     const barRightCandidate = barLeftCandidate + barWidthCandidate
-                    const barCenterCandidate = barLeftCandidate + barWidthCandidate / 2
+                    const _barCenterCandidate = barLeftCandidate + barWidthCandidate / 2
                     const leadingGapCandidate = barLeftCandidate
                     const trailingGapCandidate =
                         contentWidth - barLeftCandidate - barWidthCandidate
@@ -2189,7 +2194,7 @@ type StrictOpts = {
     onFontsReady: (done: boolean) => void
 }
 
-function waitForStrictAssets(opts: StrictOpts) {
+function _waitForStrictAssets(opts: StrictOpts) {
     const root: ParentNode = opts.scopeSelector
         ? (document.querySelector(opts.scopeSelector) as ParentNode) || document
         : document

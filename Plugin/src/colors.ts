@@ -46,7 +46,7 @@ export const defaultFramerColors: FramerColorProfile = {
   // Background Colors
   bgWindow: '#111111',
   bgSecondary: '#1D1D1D',
-  inputBackground: '#1D1D1D',
+  inputBackground: '#1C1C1C',
   surfaceCard: '#1a1a1a',
   surfacePanel: '#161616',
   surfaceBackground: '#111111',

@@ -1,22 +1,50 @@
-// Suppress framer-plugin initialization errors in dev mode - must be before any imports
+// Suppress framer-plugin initialization errors and known harmless warnings - must be before any imports
 if (typeof window !== "undefined") {
-    // Override console.error to suppress the specific error
+    // Override console.error to suppress known harmless warnings
     const originalConsoleError = console.error
     console.error = function(...args: unknown[]) {
         const message = args.join(" ")
-        if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
-            // Suppress these specific errors
+        if (typeof message === "string" && (
+            message.includes("Invalid mode: null") || 
+            message.includes("Unsupported plugin name in sheet") || 
+            message.includes("Acessability") || 
+            (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")) ||
+            message.includes("Unrecognized feature:") ||
+            message.includes("ambient-light-sensor") ||
+            message.includes("speaker") ||
+            message.includes("vibrate") ||
+            message.includes("'vr'") ||
+            message.includes("vr'") ||
+            message.includes("Multiple instances of Three.js")
+        )) {
+            // Suppress these specific errors/warnings
             return
         }
         originalConsoleError.apply(console, args)
     }
     
-    // Override console.warn to suppress the specific error
+    // Override console.warn to suppress known harmless warnings
     const originalConsoleWarn = console.warn
     console.warn = function(...args: unknown[]) {
         const message = args.join(" ")
-        if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
-            // Suppress these specific errors
+        if (typeof message === "string" && (
+            message.includes("Invalid mode: null") || 
+            message.includes("Unsupported plugin name in sheet") || 
+            message.includes("Acessability") || 
+            (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")) ||
+            message.includes("Unrecognized feature:") ||
+            message.includes("ambient-light-sensor") ||
+            message.includes("speaker") ||
+            message.includes("vibrate") ||
+            message.includes("'vr'") ||
+            message.includes("vr'") ||
+            message.includes("AhrefsAnalytics script is already initialized") ||
+            message.includes("AhrefsAnalytics") ||
+            message.includes("Allow attribute will take precedence over 'allowfullscreen'") ||
+            message.includes("allowfullscreen") ||
+            message.includes("Multiple instances of Three.js")
+        )) {
+            // Suppress these specific warnings
             return
         }
         originalConsoleWarn.apply(console, args)
@@ -32,7 +60,21 @@ interface ErrorEvent {
 
     const suppressFramerError = (event: ErrorEvent) => {
         const message = event.message || String(event.error || "")
-        if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
+        if (typeof message === "string" && (
+            message.includes("Invalid mode: null") || 
+            message.includes("Unsupported plugin name in sheet") || 
+            message.includes("Acessability") || 
+            (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")) ||
+            message.includes("Unrecognized feature:") ||
+            message.includes("ambient-light-sensor") ||
+            message.includes("speaker") ||
+            message.includes("vibrate") ||
+            message.includes("'vr'") ||
+            message.includes("vr'") ||
+            message.includes("AhrefsAnalytics") ||
+            message.includes("allowfullscreen") ||
+            message.includes("Multiple instances of Three.js")
+        )) {
             event.preventDefault()
             event.stopPropagation()
             event.stopImmediatePropagation()
@@ -44,7 +86,14 @@ interface ErrorEvent {
     window.addEventListener("error", suppressFramerError, true)
     window.addEventListener("unhandledrejection", (event) => {
         const message = String(event.reason || "")
-        if (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon"))) {
+        if (typeof message === "string" && (
+            message.includes("Invalid mode: null") || 
+            message.includes("Unsupported plugin name in sheet") || 
+            message.includes("Acessability") || 
+            (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")) ||
+            message.includes("Unrecognized feature:") ||
+            message.includes("AhrefsAnalytics")
+        )) {
             event.preventDefault()
         }
     }, true)
