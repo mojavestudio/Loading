@@ -303,7 +303,7 @@ const rootStyle: React.CSSProperties = {
 ## Settings Menu + Styling Details
 
 - The three primary configuration sections (Gate Behavior, Progress Animation, Label) reuse the same `settingsGroup` accordion markup so they appear as a single column with minimal chrome. Each header uses a Phosphor icon, the same background color, and a 16px touch target to line up with the Mojave aesthetic (`Plugin/src/App.tsx:1311-1360`, `Plugin/src/App.css:566-608`).
-- Gate-specific selectors use the `inlineLabel` helper so their label+input rows stay together (Minimum / Timeout / Finish Delay), and the Finish Delay suffix is still rendered inline via `.inputSuffix`. Circle controls stretch horizontally by grouping the Perpetual Mode and Start at label toggles inside a `settingsRow settingsRow--two`.
+- Gate-specific selectors use the `inlineLabel` helper so their label+input rows stay together (Minimum / Timeout). Circle controls stretch horizontally by grouping the Perpetual Mode and Start at label toggles inside a `settingsRow settingsRow--two`.
 - Keep the hero preview and gear exactly as implemented: fixed size, padded 15px from the top-right, and using the same accent slider track (`--range-track`) plus text colors so the plugin preview matches the component’s look and feel (`Plugin/src/App.tsx:1168-1188`, `Plugin/src/App.css:14-55`).
 
 ### Custom NumberInput Component with +/- Buttons
@@ -384,20 +384,6 @@ The component is used throughout the plugin for numeric inputs:
     step={0.5}
 />
 
-// Finish delay with external suffix
-<div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
-    <NumberInput
-        value={builder.controls.loadBar.finishDelay}
-        onChange={(value) => updateLoadBar({ finishDelay: value })}
-        min={0}
-        max={2}
-        step={0.05}
-        style={{ flex: 1, minWidth: 0 }}
-    />
-    <span style={{ fontSize: "13px", color: "var(--text-secondary)", whiteSpace: "nowrap", flexShrink: 0 }}>
-        s
-    </span>
-</div>
 ```
 
 #### Spacing Consistency

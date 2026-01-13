@@ -4,16 +4,27 @@ if (typeof window !== "undefined") {
     const originalConsoleError = console.error
     console.error = function(...args: any[]) {
         const message = args.join(" ")
-        if (typeof message === "string" && message.includes("Invalid mode: null")) {
-            // Suppress this specific error
+        if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
+            // Suppress these specific errors
             return
         }
         originalConsoleError.apply(console, args)
     }
     
+    // Override console.warn to suppress the specific error
+    const originalConsoleWarn = console.warn
+    console.warn = function(...args: any[]) {
+        const message = args.join(" ")
+        if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
+            // Suppress these specific errors
+            return
+        }
+        originalConsoleWarn.apply(console, args)
+    }
+    
     const suppressFramerError = (event: ErrorEvent) => {
         const message = event.message || String(event.error || "")
-        if (typeof message === "string" && message.includes("Invalid mode: null")) {
+        if (typeof message === "string" && (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon")))) {
             event.preventDefault()
             event.stopPropagation()
             event.stopImmediatePropagation()
@@ -25,7 +36,7 @@ if (typeof window !== "undefined") {
     window.addEventListener("error", suppressFramerError, true)
     window.addEventListener("unhandledrejection", (event) => {
         const message = String(event.reason || "")
-        if (message.includes("Invalid mode: null")) {
+        if (message.includes("Invalid mode: null") || message.includes("Unsupported plugin name in sheet") || message.includes("Acessability") || (message.includes("Supported:") && message.includes("Grid, Globe, Particles, Loading, Ribbon"))) {
             event.preventDefault()
         }
     }, true)
@@ -41,9 +52,9 @@ import { framer } from "framer-plugin"
 framer.showUI({
     width: 500,
     height: 370,
-    minWidth: 500,
-    maxWidth: 500,
-    resizable: false,
+    minWidth: 350,  // 70% of 500
+    minHeight: 259, // 70% of 370 (maintains aspect ratio)
+    resizable: true,
 })
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

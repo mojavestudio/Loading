@@ -365,7 +365,7 @@ const SearchableFontDropdown = (props: {
                     padding: "8px 10px",
                     border: "1px solid var(--border-soft)",
                     borderRadius: "6px",
-                    background: "var(--input-background)",
+                    background: "#1D1D1D",
                     color: "var(--text-primary)",
                     fontSize: "13px",
                     outline: "none",
@@ -556,8 +556,8 @@ const NumberInput = ({
                 alignItems: "center",
                 border: "1px solid var(--border-soft)",
                 borderRadius: "6px",
-                background: "var(--input-background)",
-                overflow: "hidden",
+                background: "#1D1D1D",
+                overflow: "visible",
                 boxSizing: "border-box",
                 width: "100%",
                 maxWidth: "100%",
@@ -761,7 +761,6 @@ type LoadBarControls = {
     labelPosition: LabelPosition
     labelPlacement: LabelPlacement
     labelOutsideDirection: LabelOutsideDirection
-    finishDelay: number
     showBorder: boolean
     borderWidth: number
     borderColor: string
@@ -1141,7 +1140,6 @@ const DEFAULT_LOAD_BAR: LoadBarControls = {
     labelPosition: "right",
     labelPlacement: "inside",
     labelOutsideDirection: "bottom",
-    finishDelay: 0.12,
     showBorder: false,
     borderWidth: 2,
     borderColor: "rgba(0,0,0,.2)",
@@ -1887,6 +1885,13 @@ export function App() {
             builder.controls.loadBar.labelPlacement === "outside" ||
             (builder.controls.loadBar.labelPlacement === "inline" &&
                 builder.controls.loadBar.animationStyle === "circle"))
+
+    // Switch away from positioning tab when text animation is selected
+    useEffect(() => {
+        if (activeTab === "positioning" && !supportsXAlignment) {
+            setActiveTab("progress")
+        }
+    }, [supportsXAlignment, activeTab])
     const displayModeValue: "textOnly" | "textAndNumber" | "numberOnly" | "none" = builder.controls.loadBar.showLabel
         ? (builder.controls.loadBar.textDisplayMode || "textAndNumber")
         : "none"
@@ -1937,11 +1942,9 @@ export function App() {
             .showUI({
                 width: 500,
                 height: nextHeight,
-                minWidth: 500,
-                maxWidth: 500,
-                minHeight: nextHeight,
-                maxHeight: nextHeight,
-                resizable: false,
+                minWidth: 350,  // 70% of 500
+                minHeight: isCircleMode ? 308 : 259, // 70% of nextHeight
+                resizable: true,
             })
             .catch(() => {})
     }, [isCircleMode])
@@ -2280,7 +2283,6 @@ export function App() {
                     circleGap: loadBar.circleGap,
                     trackColor: loadBar.trackColor,
                     trackWidth: loadBar.trackWidth,
-                    finishDelay: loadBar.finishDelay,
                     showBorder: loadBar.showBorder,
                     borderWidth: loadBar.borderWidth,
                     borderColor: loadBar.borderColor,
@@ -2387,7 +2389,7 @@ export function App() {
                         // Set size and controls immediately using properly mapped structure
                         if (__isLocal) {
                             console.log("[Loading Plugin] Setting attributes with controls", {
-                                topLevelLabelOutsideDirection: mappedControls.labelOutsideDirection,
+                                topLevelLabelOutsideDirection: mappedControls.label.labelOutsideDirection,
                                 nestedLabelOutsideDirection: mappedControls.label.labelOutsideDirection,
                                 barSettings: mappedControls.bar,
                                 labelSettings: mappedControls.label,
@@ -2581,7 +2583,19 @@ export function App() {
             <main className={`pluginRoot ${themeClass}`}>
                 <section className="pluginBody loginBody">
                     <article className="previewCard">
-                        <LoadingPreview controls={loginPreviewControls} width={340} height={48} />
+                        <div
+                            style={{
+                                position: "relative",
+                                width: "100%",
+                                height: "48px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginLeft: "-60px",
+                            }}
+                        >
+                            <LoadingPreview controls={loginPreviewControls} width={340} height={48} />
+                        </div>
                     </article>
                     <article className="formCard">
                         <form className="loadingCard-form" onSubmit={handleSignIn}>
@@ -2611,15 +2625,27 @@ export function App() {
                                 {authLoading ? "Verifying…" : "Continue"}
                             </button>
                         </form>
-                        <button
-                            type="button"
-                            className="ghost"
-                            onClick={() =>
-                                window.open("https://buy.stripe.com/dRmeV575Fe3J3U34tT0VO04", "_blank", "noopener,noreferrer")
-                            }
-                        >
-                            Purchase a License
-                        </button>
+                        <div style={{ marginTop: "-3px", textAlign: "center" }}>
+                            <a
+                                href="https://buy.stripe.com/dRmeV575Fe3J3U34tT0VO04"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    color: "#666",
+                                    textDecoration: "none",
+                                    fontSize: "12px",
+                                    fontFamily: "inherit"
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.textDecoration = "underline"
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.textDecoration = "none"
+                                }}
+                            >
+                                Purchase a License
+                            </a>
+                        </div>
                     </article>
                 </section>
                 <footer className="loadingFooter">
@@ -2796,6 +2822,7 @@ export function App() {
                         <TextT size={14} weight="duotone" />
                         <span>Label</span>
                     </button>
+                    {supportsXAlignment && (
                     <button
                         type="button"
                         className={`pluginTab${activeTab === "positioning" ? " is-active" : ""}`}
@@ -2803,6 +2830,15 @@ export function App() {
                     >
                         <ArrowsOut size={14} weight="duotone" />
                         <span>Positioning</span>
+                    </button>
+                    )}
+                    <button
+                        type="button"
+                        className={`pluginTab${activeTab === "gate" ? " is-active" : ""}`}
+                        onClick={() => setActiveTab("gate")}
+                    >
+                        <Barricade size={14} weight="duotone" />
+                        <span>Gate</span>
                     </button>
                     <button
                         type="button"
@@ -2829,9 +2865,13 @@ export function App() {
                                             <span style={{ marginLeft: 5 }}>Style</span>
                                             <select
                                                 value={builder.controls.loadBar.animationStyle}
-                                                onChange={(event) =>
-                                                    updateLoadBar({ animationStyle: event.target.value as "bar" | "circle" | "text" })
-                                                }
+                                                onChange={(event) => {
+                                                    const newStyle = event.target.value as "bar" | "circle" | "text"
+                                                    updateLoadBar({ 
+                                                        animationStyle: newStyle,
+                                                        showLabel: newStyle === "text" ? true : builder.controls.loadBar.showLabel
+                                                    })
+                                                }}
                                             >
                                                 <option value="bar">Bar</option>
                                                 <option value="circle">Circle</option>
@@ -2871,196 +2911,131 @@ export function App() {
                                                 </select>
                                             )}
                                         </label>
-                                        {(builder.controls.loadBar.animationStyle === "bar" ||
-                                            builder.controls.loadBar.animationStyle === "circle") ? (
-                                            <div className="settingsRow settingsRow--trackBorderGroup">
-                                                <div className="trackBorder-row">
-                                                    <div
-                                                        className={`trackBorderDrawer ${
-                                                            builder.controls.loadBar.perpetual ? "is-active" : ""
-                                                        }`}
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            className="trackBorderDrawer-toggle"
-                                                            onClick={() =>
-                                                                updateLoadBar({ perpetual: !builder.controls.loadBar.perpetual })
-                                                            }
-                                                            aria-pressed={builder.controls.loadBar.perpetual}
-                                                        >
-                                                            Perpetual
-                                                        </button>
-                                                        <div className="trackBorderDrawer-content">
-                                                            <label className="trackBorder-field">
-                                                                <span>Replay<br/>Gap</span>
-                                                                <NumberInput
-                                                                    value={builder.controls.loadBar.perpetualGap}
-                                                                    onChange={(value) =>
-                                                                        updateLoadBar({ perpetualGap: value })
-                                                                    }
-                                                                    min={0}
-                                                                    max={5}
-                                                                    step={0.1}
-                                                                />
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : builder.controls.loadBar.animationStyle !== "text" ? null : null}
+                                        {builder.controls.loadBar.animationStyle !== "text" &&
+                                            builder.controls.loadBar.fillStyle === "lines" && (
+                                                <label className="inlineLabel" style={{ flex: "0 0 auto" }}>
+                                                    <span style={{ marginLeft: 5 }}>Lines</span>
+                                                    <NumberInput
+                                                        value={builder.controls.loadBar.lineCount}
+                                                        onChange={(value) => updateLoadBar({ lineCount: value })}
+                                                        min={3}
+                                                        max={60}
+                                                        step={1}
+                                                    />
+                                                </label>
+                                            )}
                                     </div>
                             {builder.controls.loadBar.animationStyle === "text" &&
-                                (builder.controls.loadBar.textFillStyle === "static" ? "static" : "dynamic") ===
-                                    "dynamic" && (
-                                    <div className="settingsRow" style={{ display: "flex", flexWrap: "nowrap" }}>
-                                        <label className="checkbox" style={{ flex: "0 0 auto" }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={Boolean(builder.controls.loadBar.textPerpetual)}
-                                                onChange={(event) =>
-                                                    updateLoadBar({ textPerpetual: event.target.checked })
-                                                }
-                                            />
-                                            Perpetual
-                                        </label>
-                                        <label className="checkbox" style={{ flex: "0 0 auto" }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={Boolean(builder.controls.loadBar.textReverse)}
-                                                onChange={(event) =>
-                                                    updateLoadBar({ textReverse: event.target.checked })
-                                                }
-                                            />
-                                            Reverse
-                                        </label>
-                                        <label className="checkbox" style={{ flex: "0 0 auto" }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={builder.controls.loadBar.showTrack}
-                                                onChange={(event) => updateLoadBar({ showTrack: event.target.checked })}
-                                            />
-                                            Track
-                                        </label>
-                                    </div>
-                                )}
-                            {builder.controls.loadBar.animationStyle === "text" && 
-                             builder.controls.loadBar.showTrack && 
-                             builder.controls.loadBar.textFillStyle !== "static" && (
-                                <div className="settingsRow">
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flex: "1 1 0", minWidth: 0 }}>
+                                (builder.controls.loadBar.textFillStyle === "static" ? "static" : "dynamic") === "dynamic" && (
+                                    <div className="settingsRow" style={{ display: "flex", flexWrap: "nowrap", gap: 10 }}>
                                         <button
                                             type="button"
-                                            className={`toggleButton trackBorderToggle ${
-                                                builder.controls.loadBar.perpetual ? "is-active" : ""
-                                            }`}
-                                            onClick={() =>
-                                                updateLoadBar({ perpetual: !builder.controls.loadBar.perpetual })
-                                            }
-                                            aria-pressed={builder.controls.loadBar.perpetual}
+                                            className={`toggleButton ${builder.controls.loadBar.textReverse ? "is-active" : ""}`}
+                                            onClick={() => updateLoadBar({ textReverse: !builder.controls.loadBar.textReverse })}
+                                            aria-pressed={builder.controls.loadBar.textReverse}
+                                            style={{ width: 100 }}
                                         >
-                                            Perpetual
+                                            Reverse
                                         </button>
+                                        <div
+                                            className={`trackBorderDrawer ${
+                                                builder.controls.loadBar.showTrack ? "is-active" : ""
+                                            }`}
+                                            style={{ flex: "0 1 auto", minWidth: 0, maxWidth: 300 }}
+                                        >
+                                            <button
+                                                type="button"
+                                                className="trackBorderDrawer-toggle"
+                                                onClick={() =>
+                                                    updateLoadBar({ showTrack: !builder.controls.loadBar.showTrack })
+                                                }
+                                                aria-pressed={builder.controls.loadBar.showTrack}
+                                            >
+                                                Track
+                                            </button>
+                                            <div className="trackBorderDrawer-content">
+                                                <label className="trackBorder-field trackBorder-color">
+                                                    <span className="trackBorder-colorLabel">Color</span>
+                                                    <input
+                                                        type="color"
+                                                        value={builder.controls.loadBar.trackColor}
+                                                        onChange={(event) => updateLoadBar({ trackColor: event.target.value })}
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-	                            {builder.controls.loadBar.animationStyle !== "text" && (
-	                                <>
-	                                    <div className="settingsRow" style={{ flexWrap: "nowrap", gap: 10 }}>
-	                                        {builder.controls.loadBar.animationStyle === "bar" && (
-	                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-	                                                <span style={{ marginLeft: 5 }}>Fill color</span>
-	                                                <input
-	                                                    type="color"
-	                                                    value={builder.controls.loadBar.barColor}
-	                                                    onChange={(event) => updateLoadBar({ barColor: event.target.value })}
-	                                                />
-	                                            </label>
-	                                        )}
-	                                        {builder.controls.loadBar.animationStyle === "circle" && (
-	                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-	                                                <span style={{ marginLeft: 5 }}>Fill color</span>
-	                                                <input
-	                                                    type="color"
-	                                                    value={builder.controls.loadBar.barColor}
-	                                                    onChange={(event) => updateLoadBar({ barColor: event.target.value })}
-	                                                />
-	                                            </label>
-	                                        )}
-	                                        {(builder.controls.loadBar.animationStyle === "bar" || builder.controls.loadBar.animationStyle === "circle") && (
-	                                            <div style={{ flex: "1 1 0", minWidth: 0 }}>
-	                                                <VisualsSlider
-                                                    value={builder.controls.loadBar.height}
-                                                    onChange={(value) => updateLoadBar({ height: value })}
+                                )}
+                            {builder.controls.loadBar.animationStyle !== "text" && (
+                                <>
+                                    <div className="settingsRow" style={{ flexWrap: "nowrap", gap: 10 }}>
+                                        <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+                                            <span style={{ marginLeft: 5 }}>Fill color</span>
+                                            <input
+                                                type="color"
+                                                value={builder.controls.loadBar.barColor}
+                                                onChange={(event) => updateLoadBar({ barColor: event.target.value })}
+                                            />
+                                        </label>
+                                        <div style={{ flex: "1 1 0", minWidth: 0 }}>
+                                            <VisualsSlider
+                                                value={builder.controls.loadBar.height}
+                                                onChange={(value) => updateLoadBar({ height: value })}
+                                                min={1}
+                                                max={50}
+                                                step={1}
+                                                lineCount={14}
+                                                label="Height"
+                                                variant="height"
+                                            />
+                                        </div>
+                                        {builder.controls.loadBar.fillStyle === "lines" && (
+                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+                                                <VisualsSlider
+                                                    value={builder.controls.loadBar.lineWidth}
+                                                    onChange={(value) => updateLoadBar({ lineWidth: value })}
                                                     min={1}
                                                     max={50}
                                                     step={1}
-                                                    lineCount={14}
-                                                    label="Height"
-                                                    variant="height"
+                                                    lineCount={16}
+                                                    label="Width"
+                                                    variant="width"
                                                 />
-	                                            </div>
-	                                        )}
-	                                        {builder.controls.loadBar.animationStyle === "bar" ? (
-	                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-	                                                <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}><span>Radius</span><span className="rangeValue">{builder.controls.loadBar.barRadius.toFixed(0)}</span></span>
-	                                                <input
-	                                                    type="range"
+                                            </label>
+                                        )}
+                                        {builder.controls.loadBar.animationStyle === "bar" ? (
+                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+                                                <span style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                                                    <span>Radius</span>
+                                                    <span className="rangeValue">{builder.controls.loadBar.barRadius.toFixed(0)}</span>
+                                                </span>
+                                                <input
+                                                    type="range"
                                                     min={0}
                                                     max={20}
                                                     value={builder.controls.loadBar.barRadius}
                                                     onChange={(event) => updateLoadBar({ barRadius: Number(event.target.value) })}
-	                                                />
-	                                            </label>
-	                                        ) : (
-	                                            <>
-	                                                <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-	                                                    <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}><span>Gap</span><span className="rangeValue">{builder.controls.loadBar.circleGap.toFixed(0)}</span></span>
-	                                                    <input
-	                                                        type="range"
-	                                                        min={0}
-	                                                        max={90}
-	                                                        step={1}
-	                                                        value={builder.controls.loadBar.circleGap}
-	                                                        onChange={(event) => updateLoadBar({ circleGap: Number(event.target.value) })}
-	                                                    />
-	                                                </label>
-	                                            </>
-	                                        )}
-	                                        {(builder.controls.loadBar.animationStyle === "bar" ||
-	                                            builder.controls.loadBar.animationStyle === "circle") &&
-	                                            builder.controls.loadBar.fillStyle === "lines" && (
-	                                                <>
-	                                                    <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-	                                                        <span style={{ marginLeft: 5 }}>Lines</span>
-	                                                        <NumberInput
-	                                                            value={builder.controls.loadBar.lineCount}
-	                                                            onChange={(value) =>
-	                                                                updateLoadBar({ lineCount: value })
-	                                                            }
-	                                                            min={3}
-	                                                            max={60}
-	                                                            step={1}
-	                                                        />
-	                                                    </label>
-	                                                    <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
-                                                        <VisualsSlider
-                                                            value={builder.controls.loadBar.lineWidth}
-                                                            onChange={(value) =>
-                                                                updateLoadBar({ lineWidth: value })
-                                                            }
-                                                            min={1}
-                                                            max={50}
-                                                            step={1}
-                                                            lineCount={16}
-                                                            label="Width"
-                                                            variant="width"
-                                                        />
-                                                    </label>
-	                                                </>
-	                                            )}
-	                                    </div>
-	                                    {showTrackBorderControls && (
-	                                        <div className="settingsRow settingsRow--trackBorderGroup">
+                                                />
+                                            </label>
+                                        ) : (
+                                            <label className="flexColumn" style={{ flex: "1 1 0", minWidth: 0 }}>
+                                                <span style={{ marginLeft: 5, display: "flex", justifyContent: "space-between", width: "100%" }}>
+                                                    <span>Gap</span>
+                                                    <span className="rangeValue">{builder.controls.loadBar.circleGap.toFixed(0)}</span>
+                                                </span>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={90}
+                                                    step={1}
+                                                    value={builder.controls.loadBar.circleGap}
+                                                    onChange={(event) => updateLoadBar({ circleGap: Number(event.target.value) })}
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                    {showTrackBorderControls && (
+                                        <div className="settingsRow settingsRow--trackBorderGroup">
 	                                            <div className="trackBorder-row">
 	                                                <div
                                                     className={`trackBorderDrawer ${
@@ -3321,7 +3296,7 @@ export function App() {
                                 </>
                                 )}
                         </SettingsGroup>}
-                        {activeTab === "positioning" && (
+                        {supportsXAlignment && activeTab === "positioning" && (
                             <SettingsGroup
                                 title="Positioning"
                                 icon={<ArrowsOut size={18} weight="duotone" />}
@@ -3397,43 +3372,83 @@ export function App() {
 	                            onToggle={() => setActiveTab("gate")}
 	                        >
 	                            <div className="settingsRow settingsRow--gateTriple">
-	                                <div className="gateField">
-	                                    <div className="gateField-label">Minimum</div>
-	                                    <NumberInput
-	                                        value={builder.controls.minSeconds}
-	                                        onChange={(value) => updateControls("minSeconds", value)}
-	                                        min={0}
-	                                        max={10}
-	                                        step={0.1}
-	                                        style={{ width: "100%", minWidth: 0 }}
-	                                    />
-	                                </div>
-	                                <div className="gateField">
-	                                    <div className="gateField-label">Timeout</div>
-	                                    <NumberInput
-	                                        value={builder.controls.timeoutSeconds}
-	                                        onChange={(value) => updateControls("timeoutSeconds", value)}
-	                                        min={1}
-	                                        max={60}
-	                                        step={1}
-	                                        style={{ width: "100%", minWidth: 0 }}
-	                                    />
-	                                </div>
-	                                <div className="gateField">
-	                                    <div className="gateField-label">Finish delay</div>
-	                                    <div className="inlineLabel-unitWrapper gateField-unitWrapper">
-	                                        <NumberInput
-	                                            value={builder.controls.loadBar.finishDelay}
-	                                            onChange={(value) => updateLoadBar({ finishDelay: value })}
-	                                            min={0}
-	                                            max={2}
-	                                            step={0.05}
-	                                            style={{ width: "100%", minWidth: 0, marginLeft: 0 }}
-	                                        />
-	                                        <span className="inlineLabel-unit">s</span>
-	                                    </div>
-	                                </div>
-	                            </div>
+                                <div className="gateField">
+                                    <div className="gateField-label">Minimum</div>
+                                    <NumberInput
+                                        value={builder.controls.minSeconds}
+                                        onChange={(value) => updateControls("minSeconds", value)}
+                                        min={0}
+                                        max={10}
+                                        step={0.1}
+                                    />
+                                </div>
+                                <div className="gateField">
+                                    <div className="gateField-label">Timeout</div>
+                                    <NumberInput
+                                        value={builder.controls.timeoutSeconds}
+                                        onChange={(value) => updateControls("timeoutSeconds", value)}
+                                        min={1}
+                                        max={60}
+                                        step={1}
+                                    />
+                                </div>
+                                {(builder.controls.loadBar.animationStyle === "circle" || builder.controls.loadBar.animationStyle === "bar" || builder.controls.loadBar.animationStyle === "text") && (
+                                    <div className="gateField">
+                                        {(builder.controls.loadBar.animationStyle === "circle" || builder.controls.loadBar.animationStyle === "bar") && (
+                                            <div className="trackBorder-row">
+                                                <div
+                                                    className={`trackBorderDrawer ${
+                                                        builder.controls.loadBar.perpetual ? "is-active" : ""
+                                                    }`}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        className="trackBorderDrawer-toggle"
+                                                        onClick={() =>
+                                                            updateLoadBar({ perpetual: !builder.controls.loadBar.perpetual })
+                                                        }
+                                                        aria-pressed={builder.controls.loadBar.perpetual}
+                                                    >
+                                                        Perpetual
+                                                    </button>
+                                                    <div className="trackBorderDrawer-content">
+                                                        <label className="trackBorder-field">
+                                                            <span>Replay<br/>Gap</span>
+                                                            <NumberInput
+                                                                value={builder.controls.loadBar.perpetualGap}
+                                                                onChange={(value) =>
+                                                                    updateLoadBar({ perpetualGap: value })
+                                                                }
+                                                                min={0}
+                                                                max={5}
+                                                                step={0.1}
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {builder.controls.loadBar.animationStyle === "text" && builder.controls.loadBar.textFillStyle !== "static" && (
+                                            <div
+                                                className={`trackBorderDrawer ${
+                                                    builder.controls.loadBar.textPerpetual ? "is-active" : ""
+                                                }`}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="trackBorderDrawer-toggle"
+                                                    onClick={() =>
+                                                        updateLoadBar({ textPerpetual: !builder.controls.loadBar.textPerpetual })
+                                                    }
+                                                    aria-pressed={builder.controls.loadBar.textPerpetual}
+                                                >
+                                                    Perpetual
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                             <div className="settingsRow settingsRow--trackBorderGroup" style={{ gap: 10, flexWrap: "nowrap" }}>
                                 <button
                                     type="button"
@@ -3496,8 +3511,7 @@ export function App() {
                                                         </div>
                                                         <div className="historyItemMeta">
                                                             Min {entry.controls?.minSeconds ?? 0}s · Timeout{" "}
-                                                            {entry.controls?.timeoutSeconds ?? 0}s · Finish{" "}
-                                                            {entry.controls?.loadBar?.finishDelay ?? 0}s
+                                                            {entry.controls?.timeoutSeconds ?? 0}s
                                                         </div>
                                                         <div className="historyItemActions">
                                                             <button
@@ -4453,11 +4467,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         height: "100%",
                         display: "flex",
                         alignItems: "center",
-                            justifyContent: "flex-start",
+                        justifyContent: "center",
+                        transform: "translate(60px, -10px)",
                     }}
                 >
-                    {loadBar.showLabel && (
-                        <div className="previewLabel" style={{ ...baseLabelStyle, position: "relative" }}>
+                    {label && (
+                        <div className="previewLabel" style={{ ...baseLabelStyle, position: "relative", color: loadBar.labelColor || "#ffffff" }}>
                             {label}
                             </div>
                         )}
@@ -4466,10 +4481,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
             }
 
             const fillPct = Math.max(0, Math.min(1, textFillProgress)) * 100
+            // baseTextColor is for the unfilled/background text (track)
+            // fillColor is for the filled/foreground text (progress)
             const baseTextColor = loadBar.showTrack 
-                ? (loadBar.trackColor || loadBar.labelColor || (baseLabelStyle.color as string) || "rgba(255,255,255,0.25)")
+                ? (loadBar.trackColor || "rgba(255,255,255,0.25)")
                 : "transparent"
-            const fillColor = loadBar.labelColor || loadBar.textFillColor || loadBar.barColor
+            const fillColor = loadBar.labelColor || loadBar.textFillColor || loadBar.barColor || "#ffffff"
             // Use labelColor for fill color (prioritize labelColor over textFillColor)
             
             // For dynamic: ultra-smooth progressive fill with very wide, gradual transition
@@ -4500,11 +4517,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                             position: "relative",
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "flex-start",
+                            justifyContent: "center",
                             boxSizing: "border-box",
+                            transform: "translate(60px, -10px)",
                         }}
                     >
-                        {loadBar.showLabel && (
+                        {label && (
                             <div
                                 style={{
                                     position: "relative",
@@ -4517,7 +4535,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     const isFilled = idx < filled
                                     const spanStyle: CSSProperties = {
                                         ...baseLabelStyle,
-                                        color: isFilled ? fillColor : baseTextColor,
+                                        color: isFilled ? (loadBar.labelColor || "#ffffff") : (loadBar.showTrack ? (loadBar.trackColor || "rgba(255,255,255,0.25)") : "transparent"),
                                         position: "relative",
                                     }
                                     return (
@@ -4540,11 +4558,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                         position: "relative",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "flex-start",
+                        justifyContent: "center",
                         boxSizing: "border-box",
+                        transform: "translate(60px, -10px)",
                     }}
                 >
-                    {loadBar.showLabel && (
+                    {label && (
                         <div
                             style={{
                                 position: "relative",
@@ -4552,11 +4571,11 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 lineHeight: 1.2,
                             }}
                         >
-                            {/* Track (base text color) */}
+                            {/* Track (unfilled background text) */}
                             <span
                                 style={{
                                     ...baseLabelStyle,
-                                    color: baseTextColor,
+                                    color: loadBar.showTrack ? (loadBar.trackColor || "rgba(255,255,255,0.25)") : "transparent",
                                     position: "relative",
                                     display: "inline-block",
                                     zIndex: 1,
@@ -4565,7 +4584,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                             >
                                 {textContent}
                             </span>
-                            {/* Fill (masked fill color) - perfectly aligned overlay */}
+                            {/* Fill (masked overlay with label color) */}
                             <span
                                 style={{
                                     position: "absolute",
@@ -4585,11 +4604,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                 <span
                                     style={{
                                         ...baseLabelStyle,
-                                        color: "transparent",
-                                        background: fillColor,
-                                        WebkitBackgroundClip: "text",
-                                        backgroundClip: "text",
-                                        WebkitTextFillColor: "transparent",
+                                        color: loadBar.labelColor || "#ffffff",
                                         position: "relative",
                                         display: "inline-block",
                                         lineHeight: 1.2,

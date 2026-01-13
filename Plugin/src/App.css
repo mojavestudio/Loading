@@ -6,6 +6,10 @@
     background: var(--bg-window, #111111);
     min-height: 100%;
     overflow: auto;
+    /* Add responsive scaling container */
+    transform-origin: top left;
+    width: 100%;
+    height: 100%;
 }
 
 .pluginHeader {
@@ -298,11 +302,24 @@
 .loadingCard-form {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 8px;
 }
 
 .loadingCard-form #authReceipt {
-    margin-bottom: 2px;
+    margin-bottom: 12px;
+}
+
+.loadingCard-form #authEmail,
+.loadingCard-form #authReceipt {
+    width: calc(100% - 30px);
+    max-width: calc(100% - 30px);
+    margin-left: 15px;
+}
+
+.loadingCard-form label[for="authEmail"],
+.loadingCard-form label[for="authReceipt"] {
+    margin-left: 15px;
+    margin-top: 3px;
 }
 
 label {
@@ -310,7 +327,7 @@ label {
     font-weight: 500;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: -1px;
     color: var(--text-tertiary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -539,6 +556,9 @@ button:focus-visible {
     color: #ffffff;
     font-weight: 600;
     box-shadow: 0 2px 8px rgba(133, 79, 255, 0.25);
+    padding: 11px 0px;
+    max-width: calc(100% - 30px);
+    margin-left: 15px;
 }
 
 .primary:hover:not(:disabled) {
@@ -554,6 +574,9 @@ button:focus-visible {
     background: var(--ghost-bg);
     color: var(--ghost-text);
     border: 1px solid var(--ghost-border);
+    padding: 11px 0px;
+    max-width: calc(100% - 30px);
+    margin-left: 15px;
 }
 
 .ghost:hover:not(:disabled) {
@@ -745,7 +768,9 @@ button:focus-visible {
 .pluginRoot {
     display: flex;
     flex-direction: column;
-    height: auto;
+    height: 100vh;
+    justify-content: center;
+    min-height: 100vh;
     overflow-y: auto;
     overflow-x: visible;
     gap: 0;
@@ -790,6 +815,7 @@ button:focus-visible {
 
 .pluginBody.loginBody {
     grid-template-columns: 1fr;
+    align-items: center;
 }
 
 .previewCard,
@@ -876,7 +902,7 @@ button:focus-visible {
 }
 
 .formCard > .ghost {
-    margin-top: 4px;
+    margin-top: -6px;
 }
 
 @media (min-width: 720px) {
@@ -972,6 +998,7 @@ button:focus-visible {
     color: var(--text-subtle);
     padding: 10px 4px;
     background: transparent;
+    overflow: visible;
 }
 
 .loadingSettings .settingsRow {
@@ -1197,17 +1224,24 @@ button:focus-visible {
 }
 
 .settingsRow.settingsRow--gateTriple {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
     gap: 12px;
-    align-items: start;
+    align-items: flex-start;
+    overflow: visible;
 }
 
 .gateField {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 5px;
     min-width: 0;
+    overflow: visible;
+}
+
+.settingsRow--gateTriple .gateField:nth-child(1),
+.settingsRow--gateTriple .gateField:nth-child(2) {
+    min-width: 105px;
+    flex: 0 0 105px;
 }
 
 .gateField-label {
@@ -1289,26 +1323,26 @@ button:focus-visible {
 .settingsRow.settingsRow--trackBorderGroup > .trackBorder-row {
     display: flex;
     flex: 1 1 0;
-    min-width: 78px;
+    min-width: 76px;
     max-width: 240px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .settingsRow.settingsRow--trackBorderGroup > .trackBorder-row > .trackBorderDrawer {
     width: 100%;
-    min-width: 78px;
+    min-width: 76px;
     max-width: 100%;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Default state: both inactive - buttons side by side */
 .settingsRow.settingsRow--trackBorderGroup:not(:has(.trackBorderDrawer.is-active)) > .trackBorder-row {
-    flex: 0 0 78px;
-    max-width: 78px;
+    flex: 0 0 76px;
+    max-width: 76px;
 }
 
 .settingsRow.settingsRow--trackBorderGroup:not(:has(.trackBorderDrawer.is-active)) > .trackBorder-row > .trackBorderDrawer {
-    max-width: 78px;
+    max-width: 76px;
 }
 
 /* When only Track (first) is active */
@@ -1318,8 +1352,8 @@ button:focus-visible {
 }
 
 .settingsRow.settingsRow--trackBorderGroup:has(.trackBorder-row:first-child .trackBorderDrawer.is-active):not(:has(.trackBorder-row:last-child .trackBorderDrawer.is-active)) > .trackBorder-row:last-child {
-    flex: 0 0 78px;
-    max-width: 78px;
+    flex: 0 0 76px;
+    max-width: 76px;
 }
 
 /* When only Border (last) is active */
@@ -1329,8 +1363,8 @@ button:focus-visible {
 }
 
 .settingsRow.settingsRow--trackBorderGroup:has(.trackBorder-row:last-child .trackBorderDrawer.is-active):not(:has(.trackBorder-row:first-child .trackBorderDrawer.is-active)) > .trackBorder-row:first-child {
-    flex: 0 0 78px;
-    max-width: 78px;
+    flex: 0 0 76px;
+    max-width: 76px;
 }
 
 /* When both are active - share space equally */
@@ -1446,14 +1480,16 @@ button:focus-visible {
     border: 1px solid var(--border-soft);
     border-radius: 10px;
     background: transparent;
-    overflow: hidden;
+    overflow: visible;
     transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     min-width: 60px;
     flex: 0 0 60px;
     position: relative;
     padding: 0;
-    height: 47px;
+    height: 37px;
     gap: 0;
+    align-self: flex-end;
+    margin-top: -2px; /* nudged up by 2px */
 }
 .trackBorderDrawer:not(.is-active) .trackBorderDrawer-content {
     display: none;
@@ -1499,10 +1535,8 @@ button:focus-visible {
 .trackBorderDrawer.is-active .trackBorderDrawer-toggle {
     color: var(--accent-primary);
     font-weight: 600;
-    flex: 0 0 60px;
-    width: 60px;
-    min-width: 60px;
-    max-width: 60px;
+    flex: 0 0 58px;
+    max-width: 58px;
 }
 
 .trackBorderDrawer-toggle:hover {
@@ -1515,7 +1549,7 @@ button:focus-visible {
 
 .trackBorderDrawer-content {
     display: flex;
-    gap: 5px;
+    gap: 20px;
     align-items: center;
     opacity: 0;
     transform: translateX(-30px) scale(0.95);
@@ -1526,6 +1560,7 @@ button:focus-visible {
     padding-right: 12px;
     position: relative;
     z-index: 1;
+    overflow: visible;
 }
 
 .trackBorderDrawer.is-active .trackBorderDrawer-content {
@@ -1609,44 +1644,59 @@ button:focus-visible {
 }
 
 /* Perpetual drawer specific styling - single drawer, not in a group */
+.trackBorder-row:only-child {
+    flex: 1 1 auto;
+    max-width: 100%;
+}
+
 .trackBorder-row:only-child .trackBorderDrawer {
-    min-width: 78px;
-    max-width: 78px;
+    min-width: 74px;
+    max-width: 74px;
 }
 
 .trackBorder-row:only-child .trackBorderDrawer.is-active {
     flex: 1 1 0;
-    max-width: 240px;
+    max-width: 240px !important;
+    overflow: visible;
+}
+
+.gateField .trackBorder-row .trackBorderDrawer.is-active {
+    max-width: 240px !important;
 }
 
 .trackBorder-row:only-child .trackBorderDrawer-content {
     padding: 0;
     margin: 0;
+    overflow: visible;
 }
 
 .trackBorder-row:only-child .trackBorderDrawer-content .trackBorder-field {
     flex: 1 1 auto;
     min-width: 120px;
-    flex-direction: row;
+    flex-direction: row !important;
     align-items: center;
-    gap: 11px;
+    gap: -1px;
     justify-content: flex-end;
     margin: 0;
     padding: 0;
+    overflow: visible;
 }
 
 .trackBorder-row:only-child .trackBorderDrawer-content .trackBorder-field span {
     text-align: right;
     flex: 0 0 auto;
-    white-space: pre-wrap;
+    white-space: nowrap;
     line-height: 1.2;
-    margin-left: 20px;
+    margin-left: 0;
+    margin-right: 11px;
+    margin-left: 25px;
 }
 
 .trackBorder-row:only-child .trackBorderDrawer-content .trackBorder-field > div {
     margin: 0;
     padding: 0;
     border: none;
+    overflow: visible;
 }
 
 .trackBorder-field {
@@ -2098,12 +2148,10 @@ button:focus-visible {
 }
 
 .previewLabel {
-    font-size: 12px;
     font-weight: 600;
     display: flex;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: var(--text-subtle);
 }
 
 .previewLabel--absolute {
@@ -2190,7 +2238,7 @@ button:focus-visible {
 /* Visual Slider with Vertical Lines */
 .visualsSlider {
     position: relative;
-    width: 100%;
+    width: calc(100% - 2px);
 }
 
 .visualsSlider-lines {

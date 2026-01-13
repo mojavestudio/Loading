@@ -1,6 +1,6 @@
 # Loading Gate
 
-`Plugin/Plugins/Loading.tsx` is the canonical Framer code component source for this repo. It shows a polished progress bar while it waits for your page to be ready. It uses Framer Motion springs for the animation, supports multiple readiness signals (window load, assets, fonts, quiet time), and can optionally wait for the bar to finish animating before resolving.
+`Plugin/Plugins/Loading.tsx` is the canonical Framer code component source for this repo. It shows a polished progress bar while it waits for your page to be ready. It uses Framer Motion springs for the animation and supports multiple readiness signals (window load, assets, fonts, quiet time).
 
 ## Features
 
@@ -67,6 +67,6 @@ npm -C Plugin run pack
 ## Settings Menu & Styling Overview
 
 - Each settings group lives inside a `.settingsGroup` accordion with minimal chrome: no cards, thin hover feedback, and consistent 16px padding so content feels unified.
-- Gate controls (Minimum / Timeout / Finish Delay) render via `inlineLabel` rows so their label and number field stay on one line, with the finish-delay suffix displayed inline as well.
+- Gate controls (Minimum / Timeout) render via `inlineLabel` rows so their label and number field stay on one line.
 - Circle controls present the `Perpetual Mode` / `Start at label` checkboxes on the same row, and the `Perpetual Gap` slider uses the theme’s `--range-track` color for visibility.
 - The hero preview above the menus sits in a fixed-size shell, with the gear icon overlapping its top-right using absolute/fixed positioning, and slider tracks/boxes leverage the same accent tokens as the code component so the visual experience matches.

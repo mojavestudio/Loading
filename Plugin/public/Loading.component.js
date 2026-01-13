@@ -22,8 +22,6 @@ var DEFAULT_LOAD_BAR = {
   labelPosition: "right",
   labelPlacement: "inside",
   labelOutsideDirection: "bottom",
-  waitBarFinish: true,
-  finishHoldSeconds: 0.12,
   showBorder: false,
   borderWidth: 2,
   borderColor: "rgba(0,0,0,.2)"
@@ -78,18 +76,6 @@ function Loading(p) {
     nestedBarOverrides.trackColor,
     loadBarOverrides.trackColor,
     DEFAULT_LOAD_BAR.trackColor
-  );
-  const waitBarFinish = coalesce(
-    p.waitBarFinish,
-    nestedBarOverrides.waitBarFinish,
-    loadBarOverrides.waitBarFinish,
-    DEFAULT_LOAD_BAR.waitBarFinish
-  );
-  const finishHoldSeconds = coalesce(
-    p.finishHoldSeconds,
-    nestedBarOverrides.finishHoldSeconds,
-    loadBarOverrides.finishHoldSeconds,
-    DEFAULT_LOAD_BAR.finishHoldSeconds
   );
   const showBorder = coalesce(
     p.showBorder,
@@ -173,12 +159,10 @@ function Loading(p) {
     labelFontFamily,
     labelFontWeight,
     labelFont: fontOverride,
-    labelPosition,
-    labelPlacement,
-    labelOutsideDirection,
-    waitBarFinish,
-    finishHoldSeconds,
-    showBorder,
+  labelPosition,
+  labelPlacement,
+  labelOutsideDirection,
+  showBorder,
     borderWidth,
     borderColor
   };
@@ -392,11 +376,7 @@ function Loading(p) {
       console.log("[Gate] Finalizing...");
       if (showProgressBar) {
         progress.set(1);
-        if (waitBarFinish) {
-          await waitUntil(() => progress.get() >= 0.995, 1200);
-          const hold = Math.max(0, (finishHoldSeconds || 0) * 1e3);
-          if (hold) await delay(hold);
-        }
+        await waitUntil(() => progress.get() >= 0.995, 1200);
       }
       if (p.onReady) {
         console.log("[Gate] Dispatching onReady event");
@@ -433,8 +413,6 @@ function Loading(p) {
     p.customReadySelector,
     p.customReadyEvent,
     showProgressBar,
-    waitBarFinish,
-    finishHoldSeconds,
     progress
   ]);
   const labelStyle = {
@@ -911,21 +889,6 @@ addPropertyControls(Loading, {
         title: "Track",
         defaultValue: DEFAULT_LOAD_BAR.trackColor,
         hidden: (bar = {}) => !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar)
-      },
-      waitBarFinish: {
-        type: ControlType.Boolean,
-        title: "Wait Bar Finish",
-        defaultValue: DEFAULT_LOAD_BAR.waitBarFinish,
-        hidden: (bar = {}) => !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar)
-      },
-      finishHoldSeconds: {
-        type: ControlType.Number,
-        title: "Finish Hold (s)",
-        min: 0,
-        max: 2,
-        step: 0.05,
-        defaultValue: DEFAULT_LOAD_BAR.finishHoldSeconds,
-        hidden: (bar = {}) => !(bar.showProgressBar ?? DEFAULT_LOAD_BAR.showProgressBar) || !(bar.waitBarFinish ?? DEFAULT_LOAD_BAR.waitBarFinish)
       },
       showBorder: {
         type: ControlType.Boolean,

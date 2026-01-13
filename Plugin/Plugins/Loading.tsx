@@ -2463,6 +2463,15 @@ addPropertyControls(Loading, {
         defaultValue: 0.6,
         displayStepper: true,
     },
+    timeoutSeconds: {
+        type: ControlType.Number,
+        title: "Timeout (s)",
+        min: 1,
+        max: 120,
+        step: 1,
+        defaultValue: 12,
+        displayStepper: true,
+    },
     perpetual: {
         type: ControlType.Boolean,
         title: "Perpetual (Circle)",
@@ -2472,14 +2481,29 @@ addPropertyControls(Loading, {
             return anim !== "circle";
         },
     },
-    timeoutSeconds: {
+    perpetualGap: {
         type: ControlType.Number,
-        title: "Timeout (s)",
-        min: 1,
-        max: 120,
-        step: 1,
-        defaultValue: 12,
+        title: "Perpetual Gap (s)",
+        min: 0,
+        max: 5,
+        step: 0.1,
+        defaultValue: DEFAULT_LOAD_BAR.perpetualGap,
         displayStepper: true,
+        hidden: (props: any) => {
+            const anim = props.bar?.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
+            const perpetual = props.perpetual ?? DEFAULT_LOAD_BAR.perpetual;
+            return anim !== "circle" || !perpetual;
+        },
+    },
+    textPerpetual: {
+        type: ControlType.Boolean,
+        title: "Perpetual (Text)",
+        defaultValue: DEFAULT_LOAD_BAR.textPerpetual,
+        hidden: (props: any) => {
+            const anim = props.bar?.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
+            const textFillStyle = props.bar?.textFillStyle ?? DEFAULT_LOAD_BAR.textFillStyle;
+            return anim !== "text" || textFillStyle === "static";
+        },
     },
     oncePerSession: {
         type: ControlType.Boolean,
@@ -2535,15 +2559,7 @@ addPropertyControls(Loading, {
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text" ||
           (bar.textFillStyle ?? DEFAULT_LOAD_BAR.textFillStyle) === "static",
       },
-      textPerpetual: {
-        type: ControlType.Boolean,
-        title: "Perpetual (Text)",
-        defaultValue: DEFAULT_LOAD_BAR.textPerpetual,
-        hidden: (bar: any = {}) =>
-          (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text" ||
-          (bar.textFillStyle ?? DEFAULT_LOAD_BAR.textFillStyle) === "static",
-      },
-      textReverse: {
+            textReverse: {
         type: ControlType.Boolean,
         title: "Reverse Start",
         defaultValue: DEFAULT_LOAD_BAR.textReverse,
@@ -2572,21 +2588,7 @@ addPropertyControls(Loading, {
         hidden: (bar: any = {}) =>
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text",
       },
-      perpetualGap: {
-        type: ControlType.Number,
-        title: "Perpetual Gap (s)",
-        min: 0,
-        max: 5,
-        step: 0.1,
-        defaultValue: DEFAULT_LOAD_BAR.perpetualGap,
-        displayStepper: true,
-        hidden: (props: any) => {
-          const anim = props.bar?.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle;
-          const perpetual = props.perpetual ?? DEFAULT_LOAD_BAR.perpetual;
-          return anim !== "circle" || !perpetual;
-        },
-      },
-      startAtLabel: {
+            startAtLabel: {
         type: ControlType.Boolean,
         title: "Start at Label",
         defaultValue: DEFAULT_LOAD_BAR.startAtLabel,
