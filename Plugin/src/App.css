@@ -1967,7 +1967,7 @@ button:focus-visible {
     width: 6px;
     height: 6px;
     border-radius: 999px;
-    background: var(--text-primary);
+    background: var(--accent-primary);
 }
 
 .axisStrip {

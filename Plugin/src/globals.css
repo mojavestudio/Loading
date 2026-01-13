@@ -48,7 +48,7 @@
 .loadingSettings select {
     font-size: 10px;
     padding: 4px 8px;
-    background-color: #1D1D1D;
+    background-color: var(--surface-card);
     color: var(--text-primary);
 }
 
@@ -63,7 +63,7 @@ select {
     line-height: 17px;
     font-size: 12px;
     font-family: monospace;
-    background-color: #1D1D1D;
+    background-color: var(--surface-card);
     color: var(--text-primary);
     width: 100%;
     max-width: 100%;

@@ -45,6 +45,23 @@ type FontPreset = {
     weights: Array<string | number>
 }
 
+// Utility function to calculate luminance and determine appropriate text color
+function getContrastTextColor(hexColor: string): string {
+    // Remove # if present
+    const hex = hexColor.replace("#", "")
+    
+    // Parse hex to RGB
+    const r = parseInt(hex.substring(0, 2), 16)
+    const g = parseInt(hex.substring(2, 4), 16)
+    const b = parseInt(hex.substring(4, 6), 16)
+    
+    // Calculate luminance using relative luminance formula
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    
+    // Return white text for dark backgrounds, black for light backgrounds
+    return luminance > 0.5 ? "#000000" : "#ffffff"
+}
+
 const useFramerTheme = (): ThemeMode => {
     const [theme, setTheme] = useState<ThemeMode>(() => {
         if (typeof document === "undefined") return "light"
@@ -365,7 +382,7 @@ const SearchableFontDropdown = (props: {
                     padding: "8px 10px",
                     border: "1px solid var(--border-soft)",
                     borderRadius: "6px",
-                    background: "#1D1D1D",
+                    background: "var(--surface-card)",
                     color: "var(--text-primary)",
                     fontSize: "13px",
                     outline: "none",
@@ -556,7 +573,7 @@ const NumberInput = ({
                 alignItems: "center",
                 border: "1px solid var(--border-soft)",
                 borderRadius: "6px",
-                background: "#1D1D1D",
+                background: "var(--surface-card)",
                 overflow: "visible",
                 boxSizing: "border-box",
                 width: "100%",
@@ -2980,7 +2997,7 @@ export function App() {
                                             </button>
                                             <div className="trackBorderDrawer-content">
                                                 <label className="trackBorder-field trackBorder-color">
-                                                    <span className="trackBorder-colorLabel">Color</span>
+                                                    <span className="trackBorder-colorLabel" style={{ color: getContrastTextColor(builder.controls.loadBar.trackColor) }}>Color</span>
                                                     <input
                                                         type="color"
                                                         value={builder.controls.loadBar.trackColor}
@@ -3079,7 +3096,7 @@ export function App() {
                                                     </button>
                                                     <div className="trackBorderDrawer-content">
                                                         <label className="trackBorder-field trackBorder-color">
-                                                        <span className="trackBorder-colorLabel">Color</span>
+                                                        <span className="trackBorder-colorLabel" style={{ color: getContrastTextColor(builder.controls.loadBar.trackColor) }}>Color</span>
                                                         <input
                                                             type="color"
                                                             value={builder.controls.loadBar.trackColor}
@@ -3119,7 +3136,7 @@ export function App() {
                                                     </button>
                                                     <div className="trackBorderDrawer-content">
                                                         <label className="trackBorder-field trackBorder-color">
-                                                        <span className="trackBorder-colorLabel">Color</span>
+                                                        <span className="trackBorder-colorLabel" style={{ color: getContrastTextColor(builder.controls.loadBar.borderColor) }}>Color</span>
                                                         <input
                                                             type="color"
                                                             value={builder.controls.loadBar.borderColor}
