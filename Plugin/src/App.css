@@ -5,7 +5,8 @@
     color: var(--text-primary);
     background: var(--bg-window, #111111);
     min-height: 100%;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: visible;
 }
 
 .pluginHeader {
@@ -76,6 +77,20 @@
     justify-content: center;
     pointer-events: auto;
     z-index: 999;
+}
+
+.insertButton {
+    position: fixed;
+    top: 5px;
+    right: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    z-index: 999999;
+    width: 40px;
+    height: 40px;
+    overflow: visible;
 }
 
 .builderHero {
@@ -737,10 +752,6 @@ button:focus-visible {
     height: 38px;
 }
 
-.insertButton {
-    min-width: 220px;
-    text-transform: none;
-}
 
 @media (min-width: 640px) {
     .builderHero {
@@ -768,7 +779,7 @@ button:focus-visible {
     justify-content: center;
     min-height: 100vh;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: visible;
     gap: 0;
     padding: 2px 24px 7px;
     box-sizing: border-box;

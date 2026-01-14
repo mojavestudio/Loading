@@ -2783,73 +2783,77 @@ export function App() {
                                 onTriggerRefChange={handleGearTriggerRef}
                             />
                         </div>
-                        <div
-                            className="insertButton"
-                            style={{
-                                position: 'fixed',
-                                top: 5,
-                                right: 15,
-                                transform: 'translateX(90px)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                pointerEvents: 'auto',
-                                zIndex: 999,
-                            }}
-                        >
-                            <button
-                                type="button"
-                                onClick={handleInsert}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    padding: '8px',
-                                    border: 'none',
-                                    borderRadius: '0',
-                                    background: 'transparent',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '17px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s ease',
-                                    position: 'relative',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.color = 'var(--accent-primary)';
-                                    const tooltip = document.createElement('span');
-                                    tooltip.textContent = 'Insert';
-                                    tooltip.style.cssText = `
-                                        position: absolute;
-                                        right: 100%;
-                                        top: 50%;
-                                        transform: translateY(-50%);
-                                        margin-right: 8px;
-                                        padding: 4px 8px;
-                                        background: var(--surface-card);
-                                        border: 1px solid var(--border-soft);
-                                        border-radius: 4px;
-                                        color: var(--text-primary);
-                                        font-size: 11px;
-                                        white-space: nowrap;
-                                        pointer-events: none;
-                                        z-index: 1000;
-                                    `;
-                                    e.currentTarget.appendChild(tooltip);
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.color = 'var(--text-primary)';
-                                    const tooltip = e.currentTarget.querySelector('span');
-                                    if (tooltip) {
-                                        tooltip.remove();
-                                    }
-                                }}
-                            >
-                                <Plus size={17} weight="bold" />
-                            </button>
-                        </div>
                     </div>
                 </section>
+            </div>
+
+            <div
+                className="insertButton"
+            >
+                <button
+                    type="button"
+                    onClick={handleInsert}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '32px',
+                        height: '32px',
+                        padding: 0,
+                        border: '1px solid var(--border-soft)',
+                        borderRadius: '6px',
+                        background: 'var(--ghost-bg)',
+                        color: 'var(--text-primary)',
+                        fontSize: '20px',
+                        fontWeight: '600',
+                        lineHeight: '1',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--accent-primary)';
+                        e.currentTarget.style.background = 'var(--ghost-bg-hover, var(--ghost-bg))';
+                        e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                        const tooltip = document.createElement('span');
+                        tooltip.textContent = 'Insert';
+                        tooltip.style.cssText = `
+                            position: absolute;
+                            right: 100%;
+                            top: 50%;
+                            transform: translateY(-50%);
+                            margin-right: 8px;
+                            padding: 4px 8px;
+                            background: var(--surface-card);
+                            border: 1px solid var(--border-soft);
+                            border-radius: 4px;
+                            color: var(--text-primary);
+                            font-size: 11px;
+                            white-space: nowrap;
+                            pointer-events: none;
+                            z-index: 10001;
+                        `;
+                        e.currentTarget.appendChild(tooltip);
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-primary)';
+                        e.currentTarget.style.background = 'var(--ghost-bg)';
+                        e.currentTarget.style.borderColor = 'var(--border-soft)';
+                        const tooltip = e.currentTarget.querySelector('span');
+                        if (tooltip) {
+                            tooltip.remove();
+                        }
+                    }}
+                >
+                    <Plus 
+                        size={18} 
+                        weight="bold" 
+                        style={{ 
+                            display: 'block',
+                            flexShrink: 0,
+                        }} 
+                    />
+                </button>
             </div>
 
             <div

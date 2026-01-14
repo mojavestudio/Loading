@@ -76,7 +76,7 @@ select {
 /* Ensure all elements respect container padding */
 main > * {
     max-width: 100%;
-    overflow-x: hidden;
+    overflow-x: visible;
 }
 
 html {
@@ -92,7 +92,7 @@ body {
     width: 100%;
     background: var(--bg-window, #111111) !important;
     color: var(--text-primary, #111111);
-    overflow-x: hidden;
+    overflow-x: visible;
 }
 
 #root {
@@ -107,6 +107,6 @@ main {
     max-width: 100%;
     min-height: 100%;
     box-sizing: border-box;
-    overflow-x: hidden;
+    overflow-x: visible;
     background: var(--bg-window, #111111) !important;
 }
