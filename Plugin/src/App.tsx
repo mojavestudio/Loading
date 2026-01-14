@@ -2679,7 +2679,7 @@ export function App() {
                         </form>
                         <div style={{ marginTop: "-3px", textAlign: "center" }}>
                             <a
-                                href="https://buy.stripe.com/dRmeV575Fe3J3U34tT0VO04"
+                                href="https://buy.stripe.com/eVq5kvey77Fl0HR4tT0VO08"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{
