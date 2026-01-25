@@ -18,8 +18,8 @@
 /** @framerDisableUnlink */
 
 import * as React from "react"
-import { addPropertyControls, ControlType, RenderTarget } from "framer"
-import { motion, useSpring } from "framer-motion"
+import { addPropertyControls, ControlType, RenderTarget, useIsStaticRenderer } from "framer"
+import { motion, useSpring, useTransform, useMotionValue } from "framer-motion"
 
 // Removed WaitMode - always uses WindowLoad now
 
@@ -44,9 +44,9 @@ type TextFillStyle = "dynamic" | "static" | "oneByOne"
 type LoadBarConfig = {
     animationStyle: AnimationStyle
     fillStyle: FillStyle
-    lineWidth: number
+    width: number
     lineCount: number
-    height: number
+    thickness: number
     barColor: string
     perpetual: boolean
     perpetualGap: number
@@ -88,6 +88,7 @@ type Props = {
     timeoutSeconds: number
     oncePerSession: boolean
     runInPreview: boolean
+    disableAnimation: boolean
     onReady?: (event?: any) => void
     labelPosition?: "left" | "center" | "right"
     labelPlacement?: "inside" | "outside" | "inline" | "hidden"
@@ -105,7 +106,6 @@ type Props = {
     barRadius?: number
     barColor?: string
     thickness?: number
-    height?: number
     trackColor?: string
     showTrack?: boolean
     trackWidth?: number
@@ -140,22 +140,16 @@ const computeBarOriginX = (labelPosition: "left" | "center" | "right", startAtLa
     return fillFromRight ? 1 : 0
 }
 
-const computeRevealWindowStyle = (
-    progress: number,
-    originX: number,
-    _period?: number
-): React.CSSProperties => {
-    const p = clampValue(progress)
-    const widthPct = `${p * 100}%`
+const computeRevealWindowBaseStyle = (originX: number): React.CSSProperties => {
     if (originX === 0.5) {
-        return { left: "50%", width: widthPct, transform: "translateX(-50%)" }
+        return { left: "50%", transform: "translateX(-50%)" }
     }
     if (originX === 1) {
-        return { right: 0, width: widthPct }
+        return { right: 0 }
     }
     // For lines fill style, we want to ensure clean edges
     // But since we're using percentage-based widths, we'll rely on the background-size alignment
-    return { left: 0, width: widthPct }
+    return { left: 0 }
 }
 
 const SESSION_FLAG = "PageReadyGate:ready"
@@ -168,9 +162,9 @@ const LABEL_OFFSET_LIMITS = {
 const DEFAULT_LOAD_BAR: LoadBarConfig = {
     animationStyle: "bar",
     fillStyle: "solid",
-    lineWidth: 20,
+    width: 20,
     lineCount: 5,
-    height: 8,
+    thickness: 8,
     barColor: "#854FFF",
     perpetual: false,
     perpetualGap: 0.5,
@@ -211,19 +205,35 @@ const DEFAULT_LOAD_BAR: LoadBarConfig = {
 
 const MIN_TIMER_PROGRESS_WEIGHT = 0.8
 const MAX_PROGRESS_BEFORE_FINAL = 0.98
+const LIVE_MIN_VISIBLE_SECONDS = 0.2
 
 export default function Loading(p: Props) {
+    // Use useIsStaticRenderer for proper Canvas/Export detection
+    const isStaticRenderer = useIsStaticRenderer()
     const t = RenderTarget.current()
-    const isCanvas = t === RenderTarget.canvas
-    const isThumb = t === RenderTarget.thumbnail
     const isPreview = t === RenderTarget.preview
-    const gatingOff = isCanvas || isThumb || (isPreview && !p.runInPreview)
+    const runInPreview = p.runInPreview ?? true
+    
+    // Show static preview when on Canvas/Export, or when in Preview but runInPreview is false
+    const isDesignPreview = isStaticRenderer
+    // Animation gating: skip loading logic when in static renderer OR when in preview with runInPreview=false
+    const gatingOff = isStaticRenderer || (isPreview && !runInPreview)
+    const disableAnimation = !!p.disableAnimation
 
-    const isDesignPreview = isCanvas || isThumb
+    // Show static preview at 42% progress
     const DESIGN_PREVIEW_PROGRESS = 0.42
     const progress = useSpring(isDesignPreview ? DESIGN_PREVIEW_PROGRESS : 0, { stiffness: 140, damping: 22 })
     const labelRef = React.useRef<HTMLDivElement | null>(null)
     const rootRef = React.useRef<HTMLDivElement | null>(null)
+    const barRef = React.useRef<HTMLDivElement | null>(null)
+    const parseStyleDimension = (value: string | number | undefined): number | null => {
+        if (typeof value === "number" && value > 0) return value
+        if (typeof value === "string") {
+            const match = value.match(/^([\d.]+)px?$/)
+            if (match) return parseFloat(match[1])
+        }
+        return null
+    }
     const gateStartRef = React.useRef<number | null>(null)
     const timerProgressRef = React.useRef(0)
     const readinessProgressRef = React.useRef(0)
@@ -265,9 +275,9 @@ export default function Loading(p: Props) {
         DEFAULT_LOAD_BAR.fillStyle
     )!
     const lineWidth = coalesce(
-        nestedBarOverrides.lineWidth,
-        loadBarOverrides.lineWidth,
-        DEFAULT_LOAD_BAR.lineWidth
+        nestedBarOverrides.width,
+        loadBarOverrides.width,
+        DEFAULT_LOAD_BAR.width
     )!
     const lineCount = coalesce(
         nestedBarOverrides.lineCount,
@@ -276,16 +286,18 @@ export default function Loading(p: Props) {
         (loadBarOverrides as any).lineGap,
         DEFAULT_LOAD_BAR.lineCount
     )!
-    const heightRaw = coalesce(
+    const thicknessRaw = coalesce(
         p.thickness,
-        p.height,
-        nestedBarOverrides.height,
-        rootBarOverrides.height,
-        loadBarOverrides.height,
-        DEFAULT_LOAD_BAR.height
+        nestedBarOverrides.thickness,
+        rootBarOverrides.thickness,
+        loadBarOverrides.thickness,
+        DEFAULT_LOAD_BAR.thickness
     )!
+    const resolvedThickness =
+        parseStyleDimension(thicknessRaw as string | number | undefined) ??
+        DEFAULT_LOAD_BAR.thickness
     const height =
-        animationStyle === "text" ? heightRaw : clampNumber(heightRaw, 1, 35)
+        animationStyle === "text" ? resolvedThickness : clampNumber(resolvedThickness, 1, 35)
     const perpetual = coalesce(
         nestedBarOverrides.perpetual,
         loadBarOverrides.perpetual,
@@ -513,9 +525,9 @@ export default function Loading(p: Props) {
     const _loadBarConfig: LoadBarConfig = {
         animationStyle,
         fillStyle,
-        lineWidth,
+        width: lineWidth,
         lineCount,
-        height,
+        thickness: height,
         perpetual,
         perpetualGap,
         barRadius,
@@ -526,7 +538,7 @@ export default function Loading(p: Props) {
         trackWidth,
         startAtLabel,
         showLabel,
-        labelText: labelTextRaw,
+        labelText: labelTextRaw ?? "",
         labelColor,
         labelFontSize,
         labelFontFamily,
@@ -581,14 +593,14 @@ export default function Loading(p: Props) {
     )
 
     React.useEffect(() => {
-        if (!showLabel) return
+        if (!showLabel || disableAnimation) return
         const unsub = progress.on("change", (v) => {
             if (labelRef.current) labelRef.current.textContent = formatLabel(v)
         }) as (() => void) | undefined
         return () => {
             if (typeof unsub === "function") unsub()
         }
-    }, [showLabel, progress, formatLabel])
+    }, [showLabel, disableAnimation, progress, formatLabel])
 
     const firedRef = React.useRef(false)
     const minTimerCompleteRef = React.useRef(false)
@@ -596,15 +608,19 @@ export default function Loading(p: Props) {
     const [isComplete, setIsComplete] = React.useState(false)
 
     React.useEffect(() => {
-        const errorDebug = (...args: Parameters<typeof console.error>) =>
-            console.error(...args)
+        if (gatingOff || firedRef.current) {
+            return
+        }
 
-        if (gatingOff || firedRef.current) return
-
-        const minSeconds = Math.max(0, p.minSeconds || 0)
+        let minSeconds = Math.max(0, p.minSeconds || 0)
+        if (!isStaticRenderer && minSeconds === 0) {
+            // Ensure a brief live render so the gate is visible after Play/Publish.
+            minSeconds = LIVE_MIN_VISIBLE_SECONDS
+        }
         const minMs = minSeconds * 1000
         const timeoutSeconds = Math.max(0, p.timeoutSeconds || 0)
         const timeoutMs = timeoutSeconds * 1000
+
 
         gateStartRef.current = performance.now()
         minTimerCompleteRef.current = minMs === 0
@@ -615,7 +631,8 @@ export default function Loading(p: Props) {
         const updateVisualProgress = () => {
             if (!minTimerCompleteRef.current) {
                 const timerPortion = timerProgressRef.current * timerWeight
-                progress.set(Math.min(MAX_PROGRESS_BEFORE_FINAL, timerPortion))
+                const newProgress = Math.min(MAX_PROGRESS_BEFORE_FINAL, timerPortion)
+                progress.set(newProgress)
             } else {
                 const readinessPortion = readinessProgressRef.current
                 const base = timerWeight
@@ -700,6 +717,17 @@ export default function Loading(p: Props) {
         }
 
         let loadDone = document.readyState === "complete"
+        
+        // In play mode, force initial load state to false to ensure animation visibility
+        const isPlayMode = isPreview && runInPreview
+        if (isPlayMode && loadDone) {
+            loadDone = false
+            // Force the animation to run for at least minSeconds in play mode
+            setTimeout(() => {
+                loadDone = true
+                setBlend({ loadDone: true })
+            }, minMs)
+        }
 
         function setBlend(opts: {
             loadDone?: boolean
@@ -798,7 +826,9 @@ export default function Loading(p: Props) {
             await finalize()
         }
 
-        runGate().catch((err) => errorDebug("[Gate] runGate error", err))
+        runGate().catch(() => {
+            // Silently handle errors
+        })
 
         async function finalize(options?: { skipMinimumCheck?: boolean }) {
             if (firedRef.current) return
@@ -846,26 +876,56 @@ export default function Loading(p: Props) {
         p.oncePerSession,
         p.onReady,
         progress,
-        p,
     ])
 
     React.useLayoutEffect(() => {
         const node = rootRef.current
         if (!node) return
         const measure = () => {
-            setContainerSize({
-                width: node.offsetWidth,
-                height: node.offsetHeight,
-            })
+            // Try multiple methods to get dimensions
+            const rect = node.getBoundingClientRect()
+            const width = rect.width || node.offsetWidth || 0
+            const height = rect.height || node.offsetHeight || 0
+            
+            // Also check computed style as fallback
+            const computedStyle = window.getComputedStyle(node)
+            const styleWidth = parseFloat(computedStyle.width) || 0
+            const styleHeight = parseFloat(computedStyle.height) || 0
+            
+            const finalWidth = width > 0 ? width : (styleWidth > 0 ? styleWidth : 0)
+            const finalHeight = height > 0 ? height : (styleHeight > 0 ? styleHeight : 0)
+            
+            // Only update if we have valid dimensions to avoid unnecessary re-renders
+            if (finalWidth > 0 || finalHeight > 0) {
+                setContainerSize({
+                    width: finalWidth,
+                    height: finalHeight,
+                })
+            }
         }
-        measure()
+        // Use requestAnimationFrame to ensure layout is complete
+        requestAnimationFrame(() => {
+            measure()
+            // Also measure after a short delay to catch delayed layout
+            setTimeout(measure, 10)
+            // And one more time after a longer delay to catch any async layout
+            setTimeout(measure, 100)
+        })
         if (typeof ResizeObserver === "undefined") return
-        const observer = new ResizeObserver(() => measure())
+        const observer = new ResizeObserver((entries) => {
+            // Use ResizeObserver entries for more accurate measurements
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect
+                if (width > 0 || height > 0) {
+                    setContainerSize({ width, height })
+                }
+            }
+        })
         observer.observe(node)
         return () => {
             observer.disconnect()
         }
-    }, [])
+    }, [p.style?.width, p.style?.height, (p as any).width, (p as any).height]) // Re-measure when width/height props change
 
 
     React.useLayoutEffect(() => {
@@ -983,12 +1043,42 @@ export default function Loading(p: Props) {
                 return { width: 300, height: 300 }
         }
     })()
-    const measuredWidth =
-        (typeof p.style?.width === "number" ? p.style.width : null) ??
-        (containerSize.width > 0 ? containerSize.width : intrinsicSize.width)
-    const measuredHeight =
-        (typeof p.style?.height === "number" ? p.style.height : null) ??
-        (containerSize.height > 0 ? containerSize.height : intrinsicSize.height)
+    // Get dimensions from style prop, containerSize, or fallback to intrinsicSize
+    // Also check getBoundingClientRect as a last resort if containerSize is 0
+    const getRootDimensions = () => {
+        if (rootRef.current) {
+            const rect = rootRef.current.getBoundingClientRect()
+            if (rect.width > 0 && rect.height > 0) {
+                return { width: rect.width, height: rect.height }
+            }
+        }
+        return null
+    }
+    
+    // Parse width/height from style prop - handle both numbers and strings
+    // Get root dimensions directly from DOM (most reliable)
+    // Call this during render to get fresh dimensions, especially important in Canvas mode
+    const rootDimensions = getRootDimensions()
+    
+    // Priority: 1) rootDimensions (most accurate), 2) containerSize, 3) style prop (parsed), 4) intrinsicSize
+    const styleWidth = parseStyleDimension(p.style?.width as string | number | undefined)
+    const styleHeight = parseStyleDimension(p.style?.height as string | number | undefined)
+    const propWidth = parseStyleDimension((p as any).width as string | number | undefined)
+    const propHeight = parseStyleDimension((p as any).height as string | number | undefined)
+    
+    // Prefer rootDimensions as they're the most accurate representation of actual rendered size
+    // But also check containerSize which updates via ResizeObserver
+    const rootWidth = rootDimensions?.width ?? 0
+    const rootHeight = rootDimensions?.height ?? 0
+    
+    // In Canvas mode, prioritize containerSize since it updates via ResizeObserver
+    // In Preview/Live mode, use rootDimensions for immediate accuracy
+    const measuredWidth = isStaticRenderer
+        ? (propWidth ?? (containerSize.width > 0 ? containerSize.width : (rootWidth > 0 ? rootWidth : (styleWidth ?? intrinsicSize.width))))
+        : (propWidth ?? (rootWidth > 0 ? rootWidth : (containerSize.width > 0 ? containerSize.width : (styleWidth ?? intrinsicSize.width))))
+    const measuredHeight = isStaticRenderer
+        ? (propHeight ?? (containerSize.height > 0 ? containerSize.height : (rootHeight > 0 ? rootHeight : (styleHeight ?? intrinsicSize.height))))
+        : (propHeight ?? (rootHeight > 0 ? rootHeight : (containerSize.height > 0 ? containerSize.height : (styleHeight ?? intrinsicSize.height))))
     const contentWidth = Math.max(
         0,
         measuredWidth - outsidePadding.left - outsidePadding.right
@@ -1140,38 +1230,48 @@ export default function Loading(p: Props) {
     const hasMeasuredWidth = containerSize.width > 0
     const hasMeasuredHeight = containerSize.height > 0
 
+    // Ensure width/height are properly set - preserve any existing style values
+    // If width/height are not set, use 100% to fill container, or intrinsic size as fallback
     const rootStyle: React.CSSProperties = {
         ...p.style,
-        width: p.style?.width ?? (typeof p.style?.width === "string" && p.style.width.includes("%") ? "100%" : intrinsicSize.width),
-        height: p.style?.height ?? (typeof p.style?.height === "string" && p.style.height.includes("%") ? "100%" : intrinsicSize.height),
+        // Preserve width/height from explicit props or style, otherwise use 100% to fill container
+        width: (p as any).width ?? p.style?.width ?? (typeof p.style?.width === "string" && p.style.width.includes("%") ? "100%" : "100%"),
+        height: (p as any).height ?? p.style?.height ?? (typeof p.style?.height === "string" && p.style.height.includes("%") ? "100%" : "100%"),
         position: "relative",
         boxSizing: "border-box",
         paddingTop: outsidePadding.top,
         paddingRight: outsidePadding.right,
         paddingBottom: outsidePadding.bottom,
         paddingLeft: outsidePadding.left,
+        // Hide completely when animation is disabled to prevent flash on load
+        ...(disableAnimation ? { display: "none", pointerEvents: "none" } : {}),
     }
 
     // Only fall back to intrinsic minimums before the component has measured its container.
     // Once Framer reports explicit canvas sizing, allow the gate to shrink freely with the frame.
-    if (!hasMeasuredWidth) {
+    // Set minimum sizes to ensure component has dimensions for measurement
+    // These will be overridden by actual measured dimensions
+    if (!hasMeasuredWidth || measuredWidth <= 0) {
         rootStyle.minWidth = intrinsicSize.width
     }
-    if (!hasMeasuredHeight) {
+    if (!hasMeasuredHeight || measuredHeight <= 0) {
         rootStyle.minHeight = intrinsicSize.height
     }
     if (p.hideWhenComplete && isComplete) {
         rootStyle.display = "none"
     }
 
+
     // Perpetual animation state for circle/bar modes
-    const [perpetualProgress, setPerpetualProgress] = React.useState(0)
+    const perpetualProgress = useMotionValue(0)
     
     React.useEffect(() => {
         const isPerpetualBarOrCircle =
-            (animationStyle === "circle" || animationStyle === "bar") && perpetual
+            !disableAnimation &&
+            (animationStyle === "circle" || animationStyle === "bar") &&
+            perpetual
         if (!isPerpetualBarOrCircle) {
-            setPerpetualProgress(0)
+            perpetualProgress.set(0)
             return
         }
 
@@ -1193,10 +1293,10 @@ export default function Loading(p: Props) {
             if (cycleTime < animationDuration) {
                 // During animation phase
                 const progress = cycleTime / animationDuration
-                setPerpetualProgress(progress)
+                perpetualProgress.set(progress)
             } else {
                 // During gap phase
-                setPerpetualProgress(0)
+                perpetualProgress.set(0)
             }
 
             if (isAnimating) {
@@ -1212,13 +1312,13 @@ export default function Loading(p: Props) {
                 cancelAnimationFrame(animationId)
             }
         }
-    }, [animationStyle, perpetual, perpetualGap])
+    }, [animationStyle, perpetual, perpetualGap, disableAnimation, perpetualProgress])
     
     // Perpetual animation state for text mode
     const [textPerpetualProgress, setTextPerpetualProgress] = React.useState(0)
 
     React.useEffect(() => {
-        if (animationStyle !== "text" || textFillStyle === "static" || !textPerpetual) {
+        if (disableAnimation || animationStyle !== "text" || textFillStyle === "static" || !textPerpetual) {
             setTextPerpetualProgress(0)
             return
         }
@@ -1241,16 +1341,28 @@ export default function Loading(p: Props) {
             isAnimating = false
             if (animationId !== null) cancelAnimationFrame(animationId)
         }
-    }, [animationStyle, textPerpetual, textFillStyle])
+    }, [animationStyle, textPerpetual, textFillStyle, disableAnimation])
     
     // Get the actual progress value for rendering - make it reactive
     const [currentProgress, setCurrentProgress] = React.useState(0)
     
     React.useEffect(() => {
-        if (perpetual && animationStyle === "circle") {
-            // perpetualProgress is already being updated by the perpetual effect
-            setCurrentProgress(perpetualProgress)
+        if (disableAnimation) {
+            setCurrentProgress(0)
             return
+        }
+        if (perpetual && (animationStyle === "circle" || animationStyle === "bar")) {
+            // Subscribe to perpetualProgress changes
+            const unsub = perpetualProgress.on("change", (v) => {
+                setCurrentProgress(Math.max(0, Math.min(1, v)))
+            }) as (() => void) | undefined
+            
+            // Set initial value
+            setCurrentProgress(Math.max(0, Math.min(1, perpetualProgress.get())))
+            
+            return () => {
+                if (typeof unsub === "function") unsub()
+            }
         }
         
         // Subscribe to progress changes
@@ -1264,11 +1376,12 @@ export default function Loading(p: Props) {
         return () => {
             if (typeof unsub === "function") unsub()
         }
-    }, [progress, perpetual, animationStyle, perpetualProgress])
+    }, [progress, perpetual, animationStyle, perpetualProgress, disableAnimation])
     
-    const animatedProgressValue =
-        perpetual && (animationStyle === "circle" || animationStyle === "bar") ? perpetualProgress : currentProgress
-    const progressValue = isDesignPreview ? DESIGN_PREVIEW_PROGRESS : animatedProgressValue
+    const animatedProgressValue = currentProgress
+    const designProgressValue = isDesignPreview ? DESIGN_PREVIEW_PROGRESS : animatedProgressValue
+    const progressValue =
+        disableAnimation && !isDesignPreview ? 0 : designProgressValue
     const _barTransformOrigin = animationStyle === "bar" ? computeBarTransformOrigin(labelPosition, startAtLabel) : "0% 50%"
     const barOriginX = animationStyle === "bar" ? computeBarOriginX(labelPosition, startAtLabel) : 0
     const textFillProgress =
@@ -1276,9 +1389,28 @@ export default function Loading(p: Props) {
             ? textPerpetualProgress
             : progressValue
     const initialLabelValue = formatLabel(progressValue)
+    const usesPerpetualBar = perpetual && animationStyle === "bar"
+    // Always use a MotionValue for scaleX to ensure reactive updates
+    const barScaleXSource = usesPerpetualBar ? perpetualProgress : progress
+    const barScaleX = useTransform(
+        barScaleXSource,
+        (v) => (disableAnimation && !isDesignPreview) ? 0 : Math.max(0, Math.min(1, v))
+    )
+    const barRevealWidth = useTransform(
+        progress,
+        (value) => `${clampValue(value) * 100}%`
+    )
+    const barRevealWidthValue =
+        disableAnimation && !isDesignPreview
+            ? "0%"
+            : usesPerpetualBar
+            ? `${clampValue(perpetualProgress.get()) * 100}%`
+            : barRevealWidth
+
     
     // Render based on animation style
     const renderContent = () => {
+        if (disableAnimation) return null
         const _trackBackground = showTrack ? trackColor : "transparent"
         if (animationStyle === "text") {
             // Text style with optional glyph fill (no bar)
@@ -1446,16 +1578,33 @@ export default function Loading(p: Props) {
             // Prefer sizing by height (so the circle doesn't grow when only width increases),
             // but always clamp to available width to guarantee it stays inside the frame.
             const CIRCLE_INSET_PX = 5
+            
+            // For circles, use contentWidth and contentHeight which already account for padding
+            // This ensures consistency between static and animated modes
+            // In Canvas mode, ensure we're using the most up-to-date dimensions
+            // Force recalculation by checking both contentWidth and measuredWidth
+            const effectiveContentWidth = contentWidth > 0 ? contentWidth : measuredWidth
+            const effectiveContentHeight = contentHeight > 0 ? contentHeight : measuredHeight
+            
+            const circleContentWidth = effectiveContentWidth > 0 
+                ? effectiveContentWidth 
+                : intrinsicSize.width
+            const circleContentHeight = effectiveContentHeight > 0 
+                ? effectiveContentHeight 
+                : intrinsicSize.height
+            
+            // Calculate available space for the circle (accounting for inset padding only)
             const availableCircleWidth = Math.max(
                 0,
-                contentWidth - CIRCLE_INSET_PX * 2
+                circleContentWidth - CIRCLE_INSET_PX * 2
             )
             const availableCircleHeight = Math.max(
                 0,
-                contentHeight - CIRCLE_INSET_PX * 2
+                circleContentHeight - CIRCLE_INSET_PX * 2
             )
+            // Use the minimum dimension to ensure circle fits, with a reasonable minimum size
             const baseCircleSize = Math.max(
-                0,
+                20, // Minimum 20px to ensure visibility
                 Math.min(availableCircleWidth, availableCircleHeight)
             )
             const progressStrokeWidth = Math.max(1, height)
@@ -1467,31 +1616,42 @@ export default function Loading(p: Props) {
             )
 
             // Keep SVG sized to the available content, and adjust radius so strokes fit.
-            const svgSize = baseCircleSize
-            const circleRadius = Math.max(0, (svgSize - maxStrokeWidth) / 2)
+            // Ensure minimum size to prevent NaN calculations
+            const svgSize = isNaN(baseCircleSize) || baseCircleSize <= 0 
+                ? Math.max(50, intrinsicSize.width, intrinsicSize.height) // Fallback to reasonable size
+                : Math.max(1, baseCircleSize)
+            const circleRadius = Math.max(0, Math.min(svgSize / 2, (svgSize - maxStrokeWidth) / 2))
+            // Guard against NaN - ensure radius is always a valid positive number
+            const safeCircleRadius = (isNaN(circleRadius) || circleRadius <= 0 || !isFinite(circleRadius))
+                ? Math.max(1, svgSize / 4) // Fallback to quarter of svgSize, minimum 1
+                : circleRadius
             const circleSize = svgSize
             
-            const circumference = 2 * Math.PI * circleRadius
+            const circumference = 2 * Math.PI * safeCircleRadius
             const labelAngle = getInlineAngle(labelPosition, labelOutsideDirection)
             const rotationDeg = startAtLabel ? labelAngle : -90
             const gapDegrees = circleGap
-            const gapLength = (gapDegrees / 360) * circumference
+            const gapLength = Math.max(0, (gapDegrees / 360) * circumference)
             const gapOffset =
                 ((labelAngle - rotationDeg + 360) % 360) / 360 * circumference -
                 gapLength / 2
+            // Guard against NaN in gap calculations
+            const safeGapLength = isNaN(gapLength) ? 0 : gapLength
+            const safeGapOffset = isNaN(gapOffset) ? 0 : gapOffset
             const progressCap: React.SVGAttributes<SVGCircleElement>["strokeLinecap"] =
                 progressValue <= 0.001 ? "butt" : "round"
 
             // Center the SVG in the content area (flexbox will handle this, but we calculate for labels)
+            // Use contentWidth/contentHeight for centering to match the actual available space
             const circleOffsetX =
-                CIRCLE_INSET_PX + (availableCircleWidth - svgSize) / 2
+                CIRCLE_INSET_PX + (circleContentWidth - svgSize) / 2
             const circleOffsetY =
-                CIRCLE_INSET_PX + (availableCircleHeight - svgSize) / 2
+                CIRCLE_INSET_PX + (circleContentHeight - svgSize) / 2
             const circlePaddingBase = Math.min(16, Math.max(6, circleSize * 0.08))
             const insideInset = Math.max(circlePaddingBase, maxStrokeWidth * 0.5 + 6)
             const centerX = circleOffsetX + circleSize / 2
             const centerY = circleOffsetY + circleSize / 2
-            const availableRadius = Math.max(0, circleRadius - insideInset)
+            const availableRadius = Math.max(0, safeCircleRadius - insideInset)
             const labelAxisX = labelPosition === "left" ? -1 : labelPosition === "right" ? 1 : 0
             const labelAxisY =
                 labelOutsideDirection === "top"
@@ -1517,8 +1677,8 @@ export default function Loading(p: Props) {
             
             return (
                 <div style={{
-                    width: "100%",
-                    height: "100%",
+                    width: `${circleContentWidth}px`,
+                    height: `${circleContentHeight}px`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1545,8 +1705,8 @@ export default function Loading(p: Props) {
                                 fill="none"
                                 stroke={trackColor}
                                 strokeWidth={trackWidth}
-                                strokeDasharray={`${circumference - gapLength} ${gapLength}`}
-                                strokeDashoffset={gapOffset}
+                                strokeDasharray={`${circumference - safeGapLength} ${safeGapLength}`}
+                                strokeDashoffset={safeGapOffset}
                                 strokeLinecap="round"
                             />
                         )}
@@ -1555,18 +1715,18 @@ export default function Loading(p: Props) {
                             <circle
                                 cx={svgSize / 2}
                                 cy={svgSize / 2}
-                                r={circleRadius}
+                                r={safeCircleRadius}
                                 fill="none"
                                 stroke={progressValue > 0 ? barColor : "transparent"}
                                 strokeWidth={progressStrokeWidth}
                                 strokeDasharray={`${Math.max(
                                     0,
-                                    (circumference - gapLength) * progressValue
+                                    (circumference - safeGapLength) * progressValue
                                 )} ${Math.max(
                                     0,
-                                    (circumference - gapLength) * (1 - progressValue) + gapLength
+                                    (circumference - safeGapLength) * (1 - progressValue) + safeGapLength
                                 )}`}
-                                strokeDashoffset={gapOffset}
+                                strokeDashoffset={safeGapOffset}
                                 strokeLinecap={progressCap}
                             />
                         ) : (
@@ -1581,7 +1741,7 @@ export default function Loading(p: Props) {
                                     const angleDelta = Math.abs(
                                         ((((angle - labelAngle) % 360) + 540) % 360) - 180
                                     )
-                                    if (angleDelta <= gapDegrees / 2) return null
+                                    if (isNaN(gapDegrees) || angleDelta <= gapDegrees / 2) return null
                                     const rad = (angle * Math.PI) / 180
                                     const innerRadius = Math.max(0, circleRadius - progressStrokeWidth)
                                     const x1 = svgSize / 2 + circleRadius * Math.cos(rad)
@@ -1647,7 +1807,7 @@ export default function Loading(p: Props) {
                             {(() => {
                                 const angle = getInlineAngle(labelPosition, labelOutsideDirection)
                                 const rad = (angle * Math.PI) / 180
-                                const labelRadius = circleRadius
+                                const labelRadius = safeCircleRadius
                                 const lx = svgSize / 2 + labelRadius * Math.cos(rad)
                                 const ly = svgSize / 2 + labelRadius * Math.sin(rad)
                                 const inlineTransforms: string[] = ["translate(-50%, -50%)"]
@@ -1838,6 +1998,7 @@ export default function Loading(p: Props) {
             // `reserveLeft/right` and `barWidthAdjustment` already account for label bounds/offsets.
             const barWidth = baseBarWidth
             const barOffsetX = reserveLeft
+
             const barLeft = barOffsetX
             const barRight = barOffsetX + barWidth
             const barCenterX = barOffsetX + barWidth / 2
@@ -1981,14 +2142,14 @@ export default function Loading(p: Props) {
                                 }}
                             >
 	                                <motion.div
+	                                    ref={barRef}
 	                                    style={{
 	                                        width: "100%",
 	                                        height: "100%",
 	                                        background: barColor,
 	                                        borderRadius: barRadius,
-	                                        originX: barOriginX,
-	                                        originY: 0.5,
-	                                        scaleX: progressValue,
+	                                        transformOrigin: `${barOriginX * 100}% 50%`,
+	                                        scaleX: barScaleX,
 	                                    }}
 	                                />
 	                            </div>
@@ -2084,11 +2245,8 @@ export default function Loading(p: Props) {
                                     top: 0,
                                     bottom: 0,
                                     overflow: "hidden",
-                                    ...computeRevealWindowStyle(
-                                        progressValue,
-                                        barOriginX,
-                                        period
-                                    ),
+                                    ...computeRevealWindowBaseStyle(barOriginX),
+                                    width: barRevealWidthValue,
                                 }}
                             >
                                 <div
@@ -2126,6 +2284,12 @@ export default function Loading(p: Props) {
                 </div>
             )
         }
+    }
+
+    // Early return: don't render anything if animation is disabled (except in design preview)
+    // This prevents any flash during hydration
+    if (disableAnimation && !isDesignPreview) {
+        return null
     }
 
     // Content wrapper to center the content within the container
@@ -2443,6 +2607,7 @@ Loading.defaultProps = {
     timeoutSeconds: 12,
     oncePerSession: false,
     runInPreview: true,
+    disableAnimation: false,
     hideWhenComplete: false,
     loadBar: DEFAULT_LOAD_BAR,
 }
@@ -2510,6 +2675,11 @@ addPropertyControls(Loading, {
         title: "Run in Preview",
         defaultValue: true,
     },
+    disableAnimation: {
+        type: ControlType.Boolean,
+        title: "Disable Animation",
+        defaultValue: false,
+    },
     hideWhenComplete: {
         type: ControlType.Boolean,
         title: "Hide When Complete",
@@ -2562,13 +2732,13 @@ addPropertyControls(Loading, {
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "text" ||
           (bar.textFillStyle ?? DEFAULT_LOAD_BAR.textFillStyle) === "static",
       },
-      height: {
+      thickness: {
         type: ControlType.Number,
-        title: "Height",
+        title: "Thickness",
         min: 1,
         max: 35,
         step: 1,
-        defaultValue: DEFAULT_LOAD_BAR.height,
+        defaultValue: DEFAULT_LOAD_BAR.thickness,
         displayStepper: true,
         hidden: (bar: any = {}) =>
           (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) === "text",
@@ -2609,13 +2779,13 @@ addPropertyControls(Loading, {
         hidden: (bar: any = {}) =>
             (bar.animationStyle ?? DEFAULT_LOAD_BAR.animationStyle) !== "bar",
       },
-      lineWidth: {
+      width: {
         type: ControlType.Number,
         title: "Width",
         min: 1,
         max: 50,
         step: 1,
-        defaultValue: DEFAULT_LOAD_BAR.lineWidth,
+        defaultValue: DEFAULT_LOAD_BAR.width,
         displayStepper: true,
         hidden: (bar: any = {}) => {
             const style =
@@ -2739,13 +2909,9 @@ addPropertyControls(Loading, {
                 type: ControlType.Font,
                 title: "Font",
                 defaultValue: {
-                    family: DEFAULT_LOAD_BAR.labelFontFamily,
-                    weight:
-                        typeof DEFAULT_LOAD_BAR.labelFontWeight === "number"
-                            ? DEFAULT_LOAD_BAR.labelFontWeight
-                            : Number(DEFAULT_LOAD_BAR.labelFontWeight) || 400,
-                    style: "normal",
-                    size: DEFAULT_LOAD_BAR.labelFontSize,
+                    fontFamily: DEFAULT_LOAD_BAR.labelFontFamily,
+                    fontWeight: DEFAULT_LOAD_BAR.labelFontWeight,
+                    fontSize: `${DEFAULT_LOAD_BAR.labelFontSize}px`,
                 },
                 defaultFontType: "sans-serif",
                 defaultFontSize: `${DEFAULT_LOAD_BAR.labelFontSize}px`,

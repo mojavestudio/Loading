@@ -791,6 +791,7 @@ type LoadingControls = {
     timeoutSeconds: number
     oncePerSession: boolean
     runInPreview: boolean
+    disableAnimation: boolean
     hideWhenComplete: boolean
     loadBar: LoadBarControls
 }
@@ -1171,6 +1172,7 @@ const createDefaultControls = (): LoadingControls => ({
     timeoutSeconds: 12,
     oncePerSession: false,
     runInPreview: true,
+    disableAnimation: false,
     hideWhenComplete: false,
     loadBar: { ...DEFAULT_LOAD_BAR },
 })
@@ -2315,6 +2317,7 @@ export function App() {
                 timeoutSeconds: controls.timeoutSeconds,
                 oncePerSession: controls.oncePerSession,
                 runInPreview: controls.runInPreview,
+                disableAnimation: controls.disableAnimation,
                 hideWhenComplete: controls.hideWhenComplete,
                 bar: {
                     animationStyle: loadBar.animationStyle,
@@ -2323,13 +2326,15 @@ export function App() {
                     textFillColor: loadBar.textFillColor,
                     textPerpetual: loadBar.textPerpetual,
                     textReverse: loadBar.textReverse,
-                    height: loadBar.height,
+                    // Map builder "height" to component "thickness"
+                    thickness: loadBar.height,
                     perpetual: loadBar.perpetual,
                     perpetualGap: loadBar.perpetualGap,
                     startAtLabel: loadBar.startAtLabel,
                     barRadius: loadBar.barRadius,
                     barColor: loadBar.barColor,
-                    lineWidth: loadBar.lineWidth,
+                    // Map builder "lineWidth" to component "width" (stripe width)
+                    width: loadBar.lineWidth,
                     lineCount: loadBar.lineCount,
                     showTrack: loadBar.showTrack,
                     circleGap: loadBar.circleGap,
@@ -3527,6 +3532,17 @@ export function App() {
                                     Hide when complete
                                 </button>
                             </div>
+                            <div className="settingsRow" style={{ marginTop: "6px" }}>
+                                <button
+                                    type="button"
+                                    className={`toggleButton trackBorderToggle ${builder.controls.disableAnimation ? "is-active" : ""}`}
+                                    style={{ whiteSpace: "nowrap", width: "100%", minWidth: "100%", maxWidth: "none", flex: "1 1 auto" }}
+                                    onClick={() => updateControls("disableAnimation", !builder.controls.disableAnimation)}
+                                    aria-pressed={builder.controls.disableAnimation}
+                                >
+                                    Disable animation
+                                </button>
+                            </div>
 	                        </SettingsGroup>}
                             {activeTab === "history" && (
                                 <SettingsGroup
@@ -3854,6 +3870,10 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     const [outsideLabelPos, setOutsideLabelPos] = useState<{ left: number; top: number; transform: string } | null>(null)
 
     useEffect(() => {
+        if (animationDisabled || typeof window === "undefined") {
+            setProgress(0)
+            return
+        }
         const id = window.setInterval(() => {
             setProgress((prev) => {
                 if (prev >= 100) {
@@ -3887,7 +3907,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 resetTimeoutRef.current = null
             }
         }
-    }, [])
+    }, [animationDisabled])
 
     useLayoutEffect(() => {
         const node = wrapperRef.current
@@ -3908,9 +3928,11 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     }, [])
 
     const loadBar = controls.loadBar
+    const animationDisabled = controls.disableAnimation
 
     useEffect(() => {
         const isPerpetualBarOrCircle =
+            !animationDisabled &&
             (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
         if (!isPerpetualBarOrCircle || typeof window === "undefined") {
             queueMicrotask(() => setPerpetualProgress(0))
@@ -3942,10 +3964,10 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 window.cancelAnimationFrame(frame)
             }
         }
-    }, [loadBar.animationStyle, loadBar.perpetual, loadBar.perpetualGap, loadBar.labelPosition, loadBar.labelOutsideDirection, loadBar.startAtLabel])
+    }, [loadBar.animationStyle, loadBar.perpetual, loadBar.perpetualGap, loadBar.labelPosition, loadBar.labelOutsideDirection, loadBar.startAtLabel, animationDisabled])
     useEffect(() => {
         const textFillMode = loadBar.textFillStyle === "static" ? "static" : loadBar.textFillStyle === "oneByOne" ? "oneByOne" : "dynamic"
-        if (loadBar.animationStyle !== "text" || textFillMode === "static" || !loadBar.textPerpetual || typeof window === "undefined") {
+        if (animationDisabled || loadBar.animationStyle !== "text" || textFillMode === "static" || !loadBar.textPerpetual || typeof window === "undefined") {
             queueMicrotask(() => setTextPerpetualProgress(0))
             return
         }
@@ -3962,11 +3984,12 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         return () => {
             if (frame !== null) window.cancelAnimationFrame(frame)
         }
-    }, [loadBar.animationStyle, loadBar.textPerpetual, loadBar.textFillStyle])
-    const labelProgressValue =
-        (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
-            ? perpetualProgress * 100
-            : progress
+    }, [loadBar.animationStyle, loadBar.textPerpetual, loadBar.textFillStyle, animationDisabled])
+    const labelProgressValue = animationDisabled
+        ? 0
+        : (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
+        ? perpetualProgress * 100
+        : progress
     const rawLabelText = loadBar.labelText
     const baseLabelText =
         rawLabelText !== undefined
@@ -4515,9 +4538,11 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
         overflow: "visible",
     }
 
-    const progressValue = Math.max(0, Math.min(1, progress / 100))
+    const progressValue = animationDisabled ? 0 : Math.max(0, Math.min(1, progress / 100))
     const effectiveProgress =
-        (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
+        animationDisabled
+            ? 0
+            : (loadBar.animationStyle === "circle" || loadBar.animationStyle === "bar") && loadBar.perpetual
             ? perpetualProgress
             : progressValue
     const resolvedTextFillStyle =

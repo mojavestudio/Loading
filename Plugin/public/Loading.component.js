@@ -1,6 +1,6 @@
 // Loading.tsx
 import * as React from "react";
-import { addPropertyControls, ControlType, RenderTarget } from "framer";
+import { addPropertyControls, ControlType, RenderTarget, useIsStaticRenderer } from "framer";
 import { motion, useSpring } from "framer-motion";
 var SESSION_FLAG = "PageReadyGate:ready";
 var WEIGHTS = { assets: 0.6, fonts: 0.2, load: 0.2 };
@@ -29,12 +29,14 @@ var DEFAULT_LOAD_BAR = {
 var MIN_TIMER_PROGRESS_WEIGHT = 0.8;
 var MAX_PROGRESS_BEFORE_FINAL = 0.98;
 function Loading(p) {
+  const isStaticRenderer = useIsStaticRenderer();
   const t = RenderTarget.current();
-  const isCanvas = t === RenderTarget.canvas;
-  const isThumb = t === RenderTarget.thumbnail;
   const isPreview = t === RenderTarget.preview;
-  const gatingOff = isCanvas || isThumb || isPreview && !p.runInPreview;
-  const progress = useSpring(0, { stiffness: 140, damping: 22 });
+  const runInPreview = p.runInPreview ?? true;
+  const isDesignPreview = isStaticRenderer;
+  const gatingOff = isStaticRenderer || (isPreview && !runInPreview);
+  const DESIGN_PREVIEW_PROGRESS = 0.42;
+  const progress = useSpring(isDesignPreview ? DESIGN_PREVIEW_PROGRESS : 0, { stiffness: 140, damping: 22 });
   const labelRef = React.useRef(null);
   const rootRef = React.useRef(null);
   const gateStartRef = React.useRef(null);
