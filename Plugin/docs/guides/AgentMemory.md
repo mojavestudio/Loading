@@ -6,6 +6,15 @@
 - **Schema**: Component props and plugin storage helpers live inline within `Loading.tsx` and `Plugin/` TypeScript files.
 - **Loader**: Gate-ready helpers are defined within `Loading.tsx`; plugin bootstraps via `Plugin/main.tsx` and `Plugin/App.tsx`.
 
+## Important Rules
+### Console Message Restriction
+**ALL console messages are restricted to jess@mojavestud.io email only:**
+- Console messages (log, warn, error) only appear when logged in with email jess@mojavestud.io
+- Implementation checks `loading_auth_snapshot_v1` in localStorage for email match
+- Applied to both plugin UI (main.tsx) and component files (Loading.component.js)
+- Pattern: Wrap console methods to check email before outputting messages
+- This prevents console spam for other users while allowing debugging for owner
+
 ## Task Log (Structured)
 
 ### Schema (for agents)
@@ -161,6 +170,23 @@
         * Build successfully completes with npm run build
   outcome: Codebase is now clean and ready for Git commits and Framer plugin packaging
   updated: 2026-01-13
+
+- id: T-017
+  title: Restrict console messages to jess@mojavestud.io email only
+  status: completed
+  summary: Implemented email-based console message filtering to prevent console spam for other users while allowing debugging for owner.
+  attempts:
+    - when: 2026-01-25
+      result: success
+      notes:
+        * Updated main.tsx to check email before allowing [Loading Plugin] console messages
+        * Added email check function that reads from localStorage auth snapshot
+        * Modified Loading.component.js (both public/ and dist/) to filter [Gate] messages
+        * Created git-write.md workflow with console message restriction rule
+        * Updated AgentMemory.md with important rules section
+        * Pattern: Only show console when email === "jess@mojavestud.io"
+  outcome: Console messages now only appear when logged in with jess@mojavestud.io email
+  updated: 2026-01-25
 
 ## Technical Decisons
 - **AgentMemory Established**: Created baseline AgentMemory per workflow on 2026-01-10 to capture ongoing tasks.

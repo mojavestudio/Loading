@@ -1,13 +1,27 @@
 // Suppress framer-plugin initialization errors and known harmless warnings - must be before any imports
 // This runs in the plugin's iframe context and suppresses warnings from our code and dependencies
 if (typeof window !== "undefined") {
+    // Function to check if current user is jess@mojavestud.io
+    const isJessEmail = async (): Promise<boolean> => {
+        try {
+            // Try to get stored auth snapshot
+            const raw = window.localStorage.getItem("loading_auth_snapshot_v1")
+            if (!raw) return false
+            const snapshot = JSON.parse(raw)
+            const email = typeof snapshot?.email === "string" ? snapshot.email : ""
+            return email === "jess@mojavestud.io"
+        } catch {
+            return false
+        }
+    }
+    
     // Suppress warnings as early as possible, before any code runs
     const originalConsoleWarn = console.warn
     const originalConsoleError = console.error
     const originalConsoleInfo = console.info
     const originalConsoleLog = console.log
     
-    // Override all console methods to filter known harmless warnings
+    // Override all console methods to filter known harmless warnings and check user email
     const shouldSuppress = (message: string): boolean => {
         return (
             message.includes("Invalid mode: null") || 
@@ -30,37 +44,34 @@ if (typeof window !== "undefined") {
         )
     }
     
-    console.warn = function(...args: unknown[]) {
-        const message = args.join(" ")
-        if (typeof message === "string" && shouldSuppress(message)) {
-            return
-        }
-        originalConsoleWarn.apply(console, args)
+    // Helper to check if we should log based on user email
+    const shouldLog = async (): Promise<boolean> => {
+        // Check if this is a Loading Plugin message
+        return await isJessEmail()
     }
     
-    console.error = function(...args: unknown[]) {
-        const message = args.join(" ")
-        if (typeof message === "string" && shouldSuppress(message)) {
-            return
+    // Async wrapper for console methods
+    const createConsoleMethod = (original: typeof console.log) => {
+        return async function(...args: unknown[]) {
+            const message = args.join(" ")
+            if (typeof message === "string" && shouldSuppress(message)) {
+                return
+            }
+            // Only log Loading Plugin messages if user is jess@mojavestud.io
+            if (typeof message === "string" && message.includes("[Loading Plugin]")) {
+                const logAllowed = await shouldLog()
+                if (!logAllowed) {
+                    return
+                }
+            }
+            original.apply(console, args)
         }
-        originalConsoleError.apply(console, args)
     }
     
-    console.info = function(...args: unknown[]) {
-        const message = args.join(" ")
-        if (typeof message === "string" && shouldSuppress(message)) {
-            return
-        }
-        originalConsoleInfo.apply(console, args)
-    }
-    
-    console.log = function(...args: unknown[]) {
-        const message = args.join(" ")
-        if (typeof message === "string" && shouldSuppress(message)) {
-            return
-        }
-        originalConsoleLog.apply(console, args)
-    }
+    console.warn = createConsoleMethod(originalConsoleWarn)
+    console.error = createConsoleMethod(originalConsoleError)
+    console.info = createConsoleMethod(originalConsoleInfo)
+    console.log = createConsoleMethod(originalConsoleLog)
     
 interface ErrorEvent {
     message?: string
@@ -125,7 +136,7 @@ interface ErrorEvent {
                 'vibrate',
                 'vr'
             ].includes(parameters.name)) {
-                return Promise.resolve({ state: 'denied' as any })
+                return Promise.resolve({ state: 'denied' } as PermissionStatus)
             }
             return originalQuery.call(navigator.permissions, parameters)
         }
@@ -141,10 +152,11 @@ import { framer } from "framer-plugin"
 // Initialize framer UI
 framer.showUI({
     width: 500,
-    height: 370,
+    height: 800,  // Increased from 370 to 800 to ensure all content is visible
     minWidth: 500,
+    minHeight: 600,  // Added minHeight to prevent the UI from being too small
     maxWidth: 500,
-    resizable: false,
+    resizable: true,  // Allow resizing for better UX
 })
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

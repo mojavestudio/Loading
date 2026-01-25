@@ -1,8 +1,57 @@
+# Dependencies
 node_modules/
+*/node_modules/
+
+# Build outputs
 dist/
+build/
+*.tsbuildinfo
+
+# Environment files
 .env.local
 .env.*.local
+.env
+
+# Plugin artifacts
 plugin.zip
+*.zip
+
+# Source maps
 *.map
+
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
 .cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Temporary folders
+tmp/
+temp/

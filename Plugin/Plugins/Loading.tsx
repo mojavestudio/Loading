@@ -13,9 +13,13 @@
  *   - optional direct top-level overrides (e.g. `labelPosition`, `startAtLabel`)
  */
 
-/** @framerSupportedLayoutWidth any-prefer-fixed */
-/** @framerSupportedLayoutHeight any-prefer-fixed */
-/** @framerDisableUnlink */
+/**
+ * @framerDisableUnlink
+ * @framerIntrinsicWidth 600
+ * @framerIntrinsicHeight 600
+ * @framerSupportedLayoutWidth fixed
+ * @framerSupportedLayoutHeight fixed
+ */
 
 import * as React from "react"
 import { addPropertyControls, ControlType, RenderTarget, useIsStaticRenderer } from "framer"
@@ -1038,9 +1042,9 @@ export default function Loading(p: Props) {
                 return { width: 600, height: 100 }
             }
             case "text":
-                return { width: 400, height: 100 }
+                return { width: 200, height: 100 }
             default:
-                return { width: 300, height: 300 }
+                return { width: 400, height: 400 }
         }
     })()
     // Get dimensions from style prop, containerSize, or fallback to intrinsicSize
@@ -1427,7 +1431,7 @@ export default function Loading(p: Props) {
                             height: "100%",
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "flex-start",
+                            justifyContent: "center",
                             position: "relative",
                         }}
                     >
@@ -1437,6 +1441,10 @@ export default function Loading(p: Props) {
                                 style={{
                                     ...baseLabelStyle,
                                     position: "relative",
+                                    padding: "2px 4px",
+                                    WebkitFontSmoothing: "antialiased",
+                                    MozOsxFontSmoothing: "grayscale",
+                                    textRendering: "optimizeLegibility",
                                 }}
                             >
                                 {textContent}
@@ -1449,25 +1457,28 @@ export default function Loading(p: Props) {
             // Text-only fill: base muted text + clipped overlay that fills the glyphs
             const fillPct = Math.max(0, Math.min(1, textFillProgress)) * 100
             const baseTextColor =
-                trackColor ||
-                labelColor ||
-                (baseLabelStyle.color as string) ||
-                "rgba(255,255,255,0.35)"
+                showTrack && trackColor
+                    ? trackColor
+                    : "transparent"
             const clipPercent = Math.max(0, Math.min(100, fillPct))
+            
+            // Use a simple, clean mask without complex gradients
             const maskStop = textReverse
                 ? Math.max(0, 100 - clipPercent)
                 : clipPercent
-            const fillColor = textFillColor || barColor
             const maskImage = textReverse
                 ? `linear-gradient(90deg, transparent ${maskStop}%, #000 ${maskStop}%)`
                 : `linear-gradient(90deg, #000 ${maskStop}%, transparent ${maskStop}%)`
+            
+            // Use labelColor for fill color (prioritize labelColor over textFillColor)
+            const fillColor = labelColor || textFillColor || barColor
             const _directionDeg = textReverse ? 270 : 90
 
             if (isOneByOneFill) {
                 const letters = Array.from(textContent)
                 const total = Math.max(1, letters.length)
-                const scaled = Math.max(0, Math.min(1, textFillProgress)) * total
-                const filledCount = Math.min(total, Math.floor(scaled + 1e-6))
+                // Truly discrete: one character at a time, no partial fills
+                const filledCount = Math.min(total, Math.floor(textFillProgress * total))
 
                 return (
                     <div
@@ -1476,7 +1487,7 @@ export default function Loading(p: Props) {
                             height: "100%",
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "flex-start",
+                            justifyContent: "center",
                             position: "relative",
                         }}
                     >
@@ -1488,6 +1499,9 @@ export default function Loading(p: Props) {
                                     display: "inline-block",
                                     lineHeight: 1.2,
                                     padding: "2px 4px",
+                                    WebkitFontSmoothing: "antialiased",
+                                    MozOsxFontSmoothing: "grayscale",
+                                    textRendering: "optimizeLegibility",
                                 }}
                             >
                                 {letters.map((ch, idx) => {
@@ -1495,8 +1509,11 @@ export default function Loading(p: Props) {
                                     const isFilled = position < filledCount
                                     const spanStyle: React.CSSProperties = {
                                         ...baseLabelStyle,
-                                        color: isFilled ? fillColor : baseTextColor,
+                                        color: isFilled ? fillColor : (trackColor || "rgba(255,255,255,0.25)"),
                                         position: "relative",
+                                        WebkitFontSmoothing: "antialiased",
+                                        MozOsxFontSmoothing: "grayscale",
+                                        textRendering: "optimizeLegibility",
                                     }
                                     return (
                                         <span key={idx} style={spanStyle}>
@@ -1517,7 +1534,7 @@ export default function Loading(p: Props) {
                         height: "100%",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "flex-start",
+                        justifyContent: "center",
                         position: "relative",
                     }}
                 >
@@ -1527,41 +1544,64 @@ export default function Loading(p: Props) {
                                 position: "relative",
                                 display: "inline-block",
                                 lineHeight: 1.2,
-                                padding: "2px 4px",
+                                transform: "translateZ(0)", // Force GPU acceleration and pixel alignment
+                                padding: "2px 4px", // Apply padding here instead of on inner spans
                             }}
                         >
+                            {/* Track (unfilled background text) */}
                             <span
                                 style={{
                                     ...baseLabelStyle,
                                     color: baseTextColor,
                                     position: "relative",
                                     zIndex: 1,
+                                    display: "inline-block",
+                                    WebkitFontSmoothing: "antialiased",
+                                    MozOsxFontSmoothing: "grayscale",
+                                    textRendering: "optimizeLegibility",
+                                    transform: "translateZ(0)",
                                 }}
                             >
                                 {textContent}
                             </span>
+                            {/* Fill (masked overlay with label color) */}
                             <span
                                 style={{
                                     position: "absolute",
-                                    inset: 0,
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
                                     pointerEvents: "none",
                                     zIndex: 2,
+                                    overflow: "hidden",
                                     maskImage,
                                     WebkitMaskImage: maskImage,
                                     maskRepeat: "no-repeat",
                                     WebkitMaskRepeat: "no-repeat",
+                                    maskPosition: "0 0",
+                                    WebkitMaskPosition: "0 0",
+                                    WebkitFontSmoothing: "antialiased",
+                                    MozOsxFontSmoothing: "grayscale",
+                                    textRendering: "optimizeLegibility",
+                                    transform: "translateZ(0)",
                                 }}
                             >
                                 <span
                                     ref={setLabelRef}
                                     style={{
                                         ...baseLabelStyle,
-                                        color: "transparent",
-                                        background: fillColor,
-                                        WebkitBackgroundClip: "text",
-                                        backgroundClip: "text",
-                                        WebkitTextFillColor: "transparent",
-                                        position: "relative",
+                                        color: fillColor,
+                                        position: "absolute",
+                                        top: 0,
+                                        left: 0,
+                                        display: "inline-block",
+                                        lineHeight: 1.2,
+                                        whiteSpace: "nowrap",
+                                        WebkitFontSmoothing: "antialiased",
+                                        MozOsxFontSmoothing: "grayscale",
+                                        textRendering: "optimizeLegibility",
+                                        transform: "translateZ(0)",
                                     }}
                                 >
                                     {textContent}

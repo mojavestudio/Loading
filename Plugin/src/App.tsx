@@ -1185,16 +1185,16 @@ const createDefaultBuilderState = (): BuilderState => ({
 })
 
 const getInsertionSize = (style: LoadBarControls["animationStyle"], _builder: BuilderState) => {
-    // Dynamic sizing based on animation style
+    // Fixed sizing based on animation style - user can resize in Framer
     switch (style) {
         case "circle":
-            return { width: 300, height: 300 }
+            return { width: 400, height: 400 }
         case "bar":
-            return { width: 600, height: 48 } // Force horizontal orientation
+            return { width: 600, height: 100 }
         case "text":
-            return { width: 600, height: 48 } // Force horizontal orientation
+            return { width: 200, height: 100 }
         default:
-            return { width: 300, height: 300 }
+            return { width: 400, height: 400 }
     }
 }
 
@@ -1209,11 +1209,12 @@ const getEnv = (key: string): string | undefined => {
 
 const stripFramerModuleVersion = (url: string) => url.replace(/(\.js)@[^/?#]+/g, "$1")
 
-const DEFAULT_COMPONENT_URL = () => "https://framer.com/m/Loading-v5jr.js"
+const DEFAULT_COMPONENT_URL = () => "https://framer.com/m/Loading-v5jr.js@73Xho4QaS3qVGYRE7nxi"
 
 const COMPONENT_URL =
     getEnv("VITE_LOADING_COMPONENT_URL") || DEFAULT_COMPONENT_URL()
 // Alternative without version ID (latest version): "https://framer.com/m/Loading-v5jr.js"
+// Note: stripFramerModuleVersion will remove the version hash before insertion
 
 const _USER_GUIDE_URL =
     getEnv("VITE_LOADING_USER_GUIDE_URL") || "https://github.com/mojavestudio/Loading#readme"
@@ -2363,8 +2364,8 @@ export function App() {
 
         const componentUrl = stripFramerModuleVersion((COMPONENT_URL || "").trim())
         const insertAttrs = {
-            width: insertionSize.width,
-            height: insertionSize.height,
+            width: `${insertionSize.width}px`,
+            height: `${insertionSize.height}px`,
             // Property control values must live under controls
             controls: mappedControls,
         } as any
@@ -2453,8 +2454,8 @@ export function App() {
                             })
                         }
                         await (framer as any).setAttributes(insertedId, {
-                            width: insertionSize.width as any,
-                            height: insertionSize.height as any,
+                            width: `${insertionSize.width}px` as any,
+                            height: `${insertionSize.height}px` as any,
                             controls: mappedControls,
                         } as any)
                         
@@ -2464,8 +2465,8 @@ export function App() {
                         const retrySetAttributes = async () => {
                             try {
                                 await (framer as any).setAttributes(insertedId, {
-                                    width: insertionSize.width as any,
-                                    height: insertionSize.height as any,
+                                    width: `${insertionSize.width}px` as any,
+                                    height: `${insertionSize.height}px` as any,
                                     controls: mappedControls,
                                 } as any)
                             } catch (retryErr) {
@@ -3870,7 +3871,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
     const [outsideLabelPos, setOutsideLabelPos] = useState<{ left: number; top: number; transform: string } | null>(null)
 
     useEffect(() => {
-        if (animationDisabled || typeof window === "undefined") {
+        if (controls.disableAnimation || typeof window === "undefined") {
             setProgress(0)
             return
         }
@@ -3907,7 +3908,7 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                 resetTimeoutRef.current = null
             }
         }
-    }, [animationDisabled])
+    }, [controls.disableAnimation])
 
     useLayoutEffect(() => {
         const node = wrapperRef.current
@@ -4576,36 +4577,42 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                     }}
                 >
                     {label && (
-                        <div className="previewLabel" style={{ ...baseLabelStyle, position: "relative", color: loadBar.labelColor || "#ffffff" }}>
+                        <div 
+                            className="previewLabel" 
+                            style={{ 
+                                ...baseLabelStyle, 
+                                position: "relative", 
+                                color: loadBar.labelColor || "#ffffff",
+                                padding: "2px 4px",
+                                WebkitFontSmoothing: "antialiased",
+                                MozOsxFontSmoothing: "grayscale",
+                                textRendering: "optimizeLegibility",
+                            }}
+                        >
                             {label}
-                            </div>
-                        )}
-                    </div>
-                )
-            }
+                        </div>
+                    )}
+                </div>
+            )
+        }
 
-            const fillPct = Math.max(0, Math.min(1, textFillProgress)) * 100
-            // baseTextColor is for the unfilled/background text (track)
-            // fillColor is for the filled/foreground text (progress)
-            const _baseTextColor = loadBar.showTrack 
-                ? (loadBar.trackColor || "rgba(255,255,255,0.25)")
-                : "transparent"
-            const _fillColor = loadBar.labelColor || loadBar.textFillColor || loadBar.barColor || "#ffffff"
-            // Use labelColor for fill color (prioritize labelColor over textFillColor)
-            
-            // For dynamic: ultra-smooth progressive fill with very wide, gradual transition
-            // Use a much wider transition zone (30%) for ultra-smooth fill
-            const transitionZone = 30
-            const maskStop = loadBar.textReverse ? Math.max(0, 100 - fillPct) : fillPct
-            const maskStart = Math.max(0, maskStop - transitionZone)
-            const maskEnd = Math.min(100, maskStop + transitionZone)
-            // Create an extremely gradual, smooth gradient with many stops for seamless transition
-            // Use a smooth easing curve for the opacity transition
-            const maskImage = loadBar.textReverse
-                ? `linear-gradient(90deg, transparent ${maskStart}%, rgba(0,0,0,0.05) ${maskStart + transitionZone * 0.15}%, rgba(0,0,0,0.15) ${maskStart + transitionZone * 0.3}%, rgba(0,0,0,0.3) ${maskStart + transitionZone * 0.45}%, rgba(0,0,0,0.5) ${maskStart + transitionZone * 0.6}%, rgba(0,0,0,0.7) ${maskStart + transitionZone * 0.75}%, rgba(0,0,0,0.85) ${maskStart + transitionZone * 0.9}%, rgba(0,0,0,0.95) ${maskStop - transitionZone * 0.05}%, #000 ${maskEnd}%)`
-                : `linear-gradient(90deg, #000 ${maskStart}%, rgba(0,0,0,0.95) ${maskStop - transitionZone * 0.05}%, rgba(0,0,0,0.85) ${maskStop + transitionZone * 0.1}%, rgba(0,0,0,0.7) ${maskStop + transitionZone * 0.25}%, rgba(0,0,0,0.5) ${maskStop + transitionZone * 0.4}%, rgba(0,0,0,0.3) ${maskStop + transitionZone * 0.55}%, rgba(0,0,0,0.15) ${maskStop + transitionZone * 0.7}%, rgba(0,0,0,0.05) ${maskStop + transitionZone * 0.85}%, transparent ${maskEnd}%)`
-            const _directionDeg = loadBar.textReverse ? 270 : 90
-            const textContent = label ?? ""
+        // Text-only fill: use a single element with background gradient to avoid any offset
+        const fillPct = Math.max(0, Math.min(1, textFillProgress)) * 100
+        const baseTextColor = "transparent" // Always use transparent for base
+        const clipPercent = Math.max(0, Math.min(100, fillPct))
+        
+        // Use a simple, clean mask
+        const maskStop = loadBar.textReverse
+            ? Math.max(0, 100 - clipPercent)
+            : clipPercent
+        const maskImage = loadBar.textReverse
+            ? `linear-gradient(90deg, transparent ${maskStop}%, #000 ${maskStop}%)`
+            : `linear-gradient(90deg, #000 ${maskStop}%, transparent ${maskStop}%)`
+        
+        // Use labelColor for fill color (prioritize labelColor over textFillColor)
+        const fillColor = loadBar.labelColor || loadBar.textFillColor || loadBar.barColor || "#ffffff"
+        const _directionDeg = loadBar.textReverse ? 270 : 90
+        const textContent = label ?? ""
 
             if (resolvedTextFillStyle === "oneByOne") {
                 const letters = Array.from(textContent)
@@ -4633,14 +4640,21 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     display: "inline-block",
                                     lineHeight: 1.2,
                                     padding: "2px 4px",
+                                    WebkitFontSmoothing: "antialiased",
+                                    MozOsxFontSmoothing: "grayscale",
+                                    textRendering: "optimizeLegibility",
                                 }}
                             >
                                 {letters.map((ch, idx) => {
-                                    const isFilled = idx < filled
+                                    const position = loadBar.textReverse ? total - 1 - idx : idx
+                                    const isFilled = position < filled
                                     const spanStyle: CSSProperties = {
                                         ...baseLabelStyle,
-                                        color: isFilled ? (loadBar.labelColor || "#ffffff") : (loadBar.showTrack ? (loadBar.trackColor || "rgba(255,255,255,0.25)") : "transparent"),
+                                        color: isFilled ? fillColor : (loadBar.showTrack ? (loadBar.trackColor || "rgba(255,255,255,0.25)") : "transparent"),
                                         position: "relative",
+                                        WebkitFontSmoothing: "antialiased",
+                                        MozOsxFontSmoothing: "grayscale",
+                                        textRendering: "optimizeLegibility",
                                     }
                                     return (
                                         <span key={idx} style={spanStyle}>
@@ -4684,6 +4698,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                     display: "inline-block",
                                     zIndex: 1,
                                     padding: "2px 4px",
+                                    WebkitFontSmoothing: "antialiased",
+                                    MozOsxFontSmoothing: "grayscale",
+                                    textRendering: "optimizeLegibility",
                                 }}
                             >
                                 {textContent}
@@ -4714,6 +4731,9 @@ function LoadingPreview({ controls, width, height }: { controls: LoadingControls
                                         lineHeight: 1.2,
                                         whiteSpace: "nowrap",
                                         padding: "2px 4px",
+                                        WebkitFontSmoothing: "antialiased",
+                                        MozOsxFontSmoothing: "grayscale",
+                                        textRendering: "optimizeLegibility",
                                     }}
                                 >
                                     {textContent}

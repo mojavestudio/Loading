@@ -1,4 +1,57 @@
 // Loading.tsx
+// Email check for console messages
+(function() {
+    const originalConsoleLog = console.log;
+    const originalConsoleWarn = console.warn;
+    const originalConsoleError = console.error;
+    
+    const isJessEmail = () => {
+        try {
+            const raw = window.localStorage.getItem("loading_auth_snapshot_v1");
+            if (!raw) return false;
+            const snapshot = JSON.parse(raw);
+            const email = typeof snapshot?.email === "string" ? snapshot.email : "";
+            return email === "jess@mojavestud.io";
+        } catch {
+            return false;
+        }
+    };
+    
+    const shouldLogGateMessage = () => {
+        return isJessEmail();
+    };
+    
+    console.log = function(...args) {
+        const message = args.join(" ");
+        if (typeof message === "string" && message.includes("[Gate]")) {
+            if (!shouldLogGateMessage()) {
+                return;
+            }
+        }
+        originalConsoleLog.apply(console, args);
+    };
+    
+    console.warn = function(...args) {
+        const message = args.join(" ");
+        if (typeof message === "string" && message.includes("[Gate]")) {
+            if (!shouldLogGateMessage()) {
+                return;
+            }
+        }
+        originalConsoleWarn.apply(console, args);
+    };
+    
+    console.error = function(...args) {
+        const message = args.join(" ");
+        if (typeof message === "string" && message.includes("[Gate]")) {
+            if (!shouldLogGateMessage()) {
+                return;
+            }
+        }
+        originalConsoleError.apply(console, args);
+    };
+})();
+
 import * as React from "react";
 import { addPropertyControls, ControlType, RenderTarget, useIsStaticRenderer } from "framer";
 import { motion, useSpring } from "framer-motion";
